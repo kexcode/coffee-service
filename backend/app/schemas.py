@@ -48,6 +48,19 @@ class ExpenseCreate(BaseModel):
     receipt_url: Optional[str] = Field(None, max_length=1000)
 
 
+class ExpenseUpdate(BaseModel):
+    category: Optional[CategoryType] = None
+    amount: Optional[float] = Field(None, gt=0.0)
+    description: Optional[str] = Field(None, min_length=1, max_length=500)
+    receipt_url: Optional[str] = Field(None, max_length=1000)
+
+
+class DonationUpdate(BaseModel):
+    amount: Optional[float] = Field(None, gt=0.0)
+    payment_method: Optional[Literal["cash", "paypal", "card"]] = None
+    status: Optional[Literal["confirmed", "pending", "rejected"]] = None
+
+
 class ExpenseOut(BaseModel):
     id: int
     category: str

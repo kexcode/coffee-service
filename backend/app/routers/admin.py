@@ -8,8 +8,10 @@ from app.database import get_db
 from app.models import User, Donation, Expense, Setting
 from app.schemas import (
     ExpenseCreate,
+    ExpenseUpdate,
     ExpenseOut,
     DonationOut,
+    DonationUpdate,
     SettingUpdate,
 )
 from app.bot.scheduler import send_monthly_pledge_reminders
@@ -32,6 +34,33 @@ async def create_expense(
         created_by=admin.tg_id,
     )
     db.add(expense)
+    await db.commit()
+    await db.refresh(expense)
+    return expense
+
+
+@router.patch("/expenses/{expense_id}", response_model=ExpenseOut)
+async def update_expense(
+    expense_id: int,
+    payload: ExpenseUpdate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(Expense).where(Expense.id == expense_id))
+    expense = res.scalar_one_or_none()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    if payload.category is not None:
+        expense.category = payload.category
+    if payload.amount is not None:
+        expense.amount = round(payload.amount, 2)
+    if payload.description is not None:
+        expense.description = payload.description.strip()
+    if payload.receipt_url is not None:
+        cleaned_url = payload.receipt_url.strip()
+        expense.receipt_url = cleaned_url if cleaned_url else None
+
     await db.commit()
     await db.refresh(expense)
     return expense
@@ -143,6 +172,60 @@ async def reject_donation(
         user_first_name=user.first_name,
         user_username=user.username,
     )
+
+
+@router.patch("/donations/{donation_id}", response_model=DonationOut)
+async def update_donation(
+    donation_id: int,
+    payload: DonationUpdate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        select(Donation, User)
+        .join(User, Donation.user_id == User.id)
+        .where(Donation.id == donation_id)
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    donation, user = row
+    if payload.amount is not None:
+        donation.amount = round(payload.amount, 2)
+    if payload.payment_method is not None:
+        donation.payment_method = payload.payment_method
+    if payload.status is not None:
+        donation.status = payload.status
+
+    await db.commit()
+    await db.refresh(donation)
+
+    return DonationOut(
+        id=donation.id,
+        user_id=donation.user_id,
+        amount=donation.amount,
+        payment_method=donation.payment_method,
+        status=donation.status,
+        created_at=donation.created_at,
+        user_first_name=user.first_name,
+        user_username=user.username,
+    )
+
+
+@router.delete("/donations/{donation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_donation(
+    donation_id: int,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(Donation).where(Donation.id == donation_id))
+    donation = res.scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    await db.delete(donation)
+    await db.commit()
 
 
 @router.get("/settings", response_model=Dict[str, str])

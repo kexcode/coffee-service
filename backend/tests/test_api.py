@@ -111,3 +111,40 @@ async def test_dashboard_and_pledge_flow():
         types = [item["type"] for item in feed]
         assert "donation" in types
         assert "expense" in types
+
+        # 9. Admin edits expense (correction of amount and description)
+        exp_id = expense_resp.json()["id"]
+        patch_exp_resp = await client.patch(
+            f"/api/admin/expenses/{exp_id}",
+            headers=admin_headers,
+            json={"amount": 10.0, "description": "1kg Ethiopian Yirgacheffe (Discounted)"},
+        )
+        assert patch_exp_resp.status_code == 200
+        assert patch_exp_resp.json()["amount"] == 10.0
+        assert patch_exp_resp.json()["description"] == "1kg Ethiopian Yirgacheffe (Discounted)"
+
+        # 10. Admin edits donation (correction of amount)
+        don_id = donation["id"]
+        patch_don_resp = await client.patch(
+            f"/api/admin/donations/{don_id}",
+            headers=admin_headers,
+            json={"amount": 20.0},
+        )
+        assert patch_don_resp.status_code == 200
+        assert patch_don_resp.json()["amount"] == 20.0
+
+        # Verify updated balance: €20.00 - €10.00 = €10.00
+        dash_resp3 = await client.get("/api/dashboard", headers=dev_headers)
+        assert dash_resp3.json()["total_balance"] == 10.00
+
+        # 11. Admin deletes expense
+        del_exp_resp = await client.delete(f"/api/admin/expenses/{exp_id}", headers=admin_headers)
+        assert del_exp_resp.status_code == 204
+
+        # 12. Admin deletes donation
+        del_don_resp = await client.delete(f"/api/admin/donations/{don_id}", headers=admin_headers)
+        assert del_don_resp.status_code == 204
+
+        # Balance returns to 0
+        dash_resp4 = await client.get("/api/dashboard", headers=dev_headers)
+        assert dash_resp4.json()["total_balance"] == 0.00

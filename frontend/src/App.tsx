@@ -11,6 +11,7 @@ import { PledgeCard } from './components/PledgeCard';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { TransparencyFeed } from './components/TransparencyFeed';
 import { AdminPanel } from './components/AdminPanel';
+import { EditEntryModal } from './components/EditEntryModal';
 
 export function App() {
   const { initData, tgUser, triggerHaptic, openLink, isTma } = useTelegram();
@@ -22,6 +23,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isContributeModalOpen, setIsContributeModalOpen] = useState<boolean>(false);
+  const [selectedEntryToEdit, setSelectedEntryToEdit] = useState<FeedItem | null>(null);
   const [devRole, setDevRole] = useState<'user' | 'admin'>('admin');
 
   // Configure API credentials immediately
@@ -204,7 +206,12 @@ export function App() {
         {/* Tab 3: Transparency Audit Feed */}
         {activeTab === 'audit' && (
           <div className="space-y-4">
-            <TransparencyFeed items={feed} openLink={openLink} />
+            <TransparencyFeed
+              items={feed}
+              openLink={openLink}
+              isAdmin={isAdmin}
+              onEditEntry={(entry) => setSelectedEntryToEdit(entry)}
+            />
           </div>
         )}
 
@@ -240,6 +247,15 @@ export function App() {
         onSuccess={loadData}
         triggerHaptic={triggerHaptic}
         openLink={openLink}
+      />
+
+      {/* Edit Entry Modal (Admin Only) */}
+      <EditEntryModal
+        entry={selectedEntryToEdit}
+        isOpen={Boolean(selectedEntryToEdit)}
+        onClose={() => setSelectedEntryToEdit(null)}
+        onSaved={loadData}
+        triggerHaptic={triggerHaptic}
       />
     </div>
   );

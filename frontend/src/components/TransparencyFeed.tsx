@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, FileText, ExternalLink, Calendar } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, FileText, ExternalLink, Calendar, Edit2 } from 'lucide-react';
 import { FeedItem } from '../types';
 
 interface TransparencyFeedProps {
   items: FeedItem[];
   openLink: (url: string) => void;
+  isAdmin?: boolean;
+  onEditEntry?: (item: FeedItem) => void;
 }
 
-export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({ items, openLink }) => {
+export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({
+  items,
+  openLink,
+  isAdmin,
+  onEditEntry,
+}) => {
   const [filter, setFilter] = useState<'all' | 'donation' | 'expense'>('all');
 
   const filteredItems = items.filter((item) => {
@@ -130,7 +137,7 @@ export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({ items, openL
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex items-center space-x-1.5">
                   <span
                     className={`text-xs font-extrabold ${
                       isDonation ? 'text-emerald-700' : 'text-coffee-espresso'
@@ -138,6 +145,15 @@ export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({ items, openL
                   >
                     {isDonation ? `+€${item.amount.toFixed(2)}` : `-€${item.amount.toFixed(2)}`}
                   </span>
+                  {isAdmin && onEditEntry && (
+                    <button
+                      onClick={() => onEditEntry(item)}
+                      className="p-1 rounded-lg text-stone-400 hover:text-coffee-espresso hover:bg-stone-100 transition-colors"
+                      title="Edit or Delete entry"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

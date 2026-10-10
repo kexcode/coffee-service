@@ -91,8 +91,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  adminUpdateExpense: (expenseId: number, data: Partial<ExpensePayload>) =>
+    request<any>(`/api/admin/expenses/${expenseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   adminDeleteExpense: (expenseId: number) =>
     request<void>(`/api/admin/expenses/${expenseId}`, {
+      method: 'DELETE',
+    }),
+  adminUpdateDonation: (donationId: number, data: { amount?: number; payment_method?: string; status?: string }) =>
+    request<Donation>(`/api/admin/donations/${donationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  adminDeleteDonation: (donationId: number) =>
+    request<void>(`/api/admin/donations/${donationId}`, {
       method: 'DELETE',
     }),
   adminGetPendingDonations: () =>
