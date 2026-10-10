@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: coffee_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///app/data/coffee.db
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: coffee_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+  # Optional Cloudflare Quick Tunnel for instant public HTTPS URL
+  # To run with public HTTPS: docker compose --profile tunnel up
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: coffee_tunnel
+    restart: unless-stopped
+    command: tunnel --url http://frontend:80
+    profiles:
+      - tunnel
+    depends_on:
+      - frontend
+
+volumes:
+  coffee_data:
