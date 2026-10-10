@@ -10,14 +10,34 @@ export function setApiAuth(initData: string, devUser?: { id: number; first_name:
   }
 }
 
+function getEffectiveInitData(): string {
+  if (currentInitData) return currentInitData;
+  if (typeof window !== 'undefined') {
+    const twa = (window as any).Telegram?.WebApp;
+    if (twa?.initData) return twa.initData;
+    if (window.location.hash.includes('tgWebAppData=')) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const val = hashParams.get('tgWebAppData');
+      if (val) return val;
+    }
+    if (window.location.search.includes('tgWebAppData=')) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const val = searchParams.get('tgWebAppData');
+      if (val) return val;
+    }
+  }
+  return '';
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
 
-  if (currentInitData) {
-    headers['X-Telegram-Init-Data'] = currentInitData;
+  const effectiveInitData = getEffectiveInitData();
+  if (effectiveInitData) {
+    headers['X-Telegram-Init-Data'] = effectiveInitData;
   } else if (devUserOverride) {
     headers['X-Dev-Tg-Id'] = String(devUserOverride.id);
     headers['X-Dev-First-Name'] = devUserOverride.first_name;

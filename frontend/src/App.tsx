@@ -24,7 +24,7 @@ export function App() {
   const [isContributeModalOpen, setIsContributeModalOpen] = useState<boolean>(false);
   const [devRole, setDevRole] = useState<'user' | 'admin'>('admin');
 
-  // Configure API credentials
+  // Configure API credentials immediately
   useEffect(() => {
     if (tgUser) {
       setApiAuth(initData, {
@@ -40,6 +40,14 @@ export function App() {
     setIsLoading(true);
     setError(null);
     try {
+      if (tgUser) {
+        setApiAuth(initData, {
+          id: tgUser.id,
+          first_name: tgUser.first_name,
+          username: tgUser.username,
+          role: !isTma ? devRole : undefined,
+        });
+      }
       const [userData, dashData, feedData] = await Promise.all([
         api.getUserMe(),
         api.getDashboard(),
@@ -54,11 +62,22 @@ export function App() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [initData, tgUser, devRole, isTma]);
 
   useEffect(() => {
     loadData();
-  }, [loadData, devRole]);
+  }, [loadData]);
+
+  const effectiveUser: User | null = user || (tgUser ? {
+    id: tgUser.id,
+    tg_id: tgUser.id,
+    first_name: tgUser.first_name,
+    username: tgUser.username,
+    role: (tgUser.username?.toLowerCase() === 'leorapatskiy' || devRole === 'admin' ? 'admin' : 'user') as 'admin' | 'user',
+    pledge_amount: 0,
+    pledge_active: false,
+    created_at: new Date().toISOString(),
+  } : null);
 
   const toggleDevRole = () => {
     if (isTma) return; // Only for browser testing preview
@@ -67,13 +86,13 @@ export function App() {
     triggerHaptic('light');
   };
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = effectiveUser?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-coffee-cream pb-24 text-coffee-espresso max-w-md mx-auto relative shadow-2xl overflow-x-hidden">
       {/* Header */}
       <Header
-        user={user}
+        user={effectiveUser}
         onRefresh={loadData}
         isLoading={isLoading}
         onToggleDevRole={!isTma ? toggleDevRole : undefined}
@@ -165,7 +184,7 @@ export function App() {
             />
 
             <PledgeCard
-              user={user}
+              user={effectiveUser}
               onPledgeUpdated={(updated) => {
                 setUser(updated);
                 loadData();
