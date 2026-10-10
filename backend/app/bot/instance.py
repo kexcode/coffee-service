@@ -42,9 +42,20 @@ async def notify_admins_cash_donation(donation_id: int, user_first_name: str, am
         logger.info(f"Mock Notification: Admin alert for cash payment #{donation_id}: {user_first_name} paid €{amount:.2f}")
         return
 
-    admin_ids = settings.admin_id_list
+    admin_ids = set(settings.admin_id_list)
+    try:
+        from app.database import async_session_factory
+        from app.models import User
+        from sqlalchemy import select
+        async with async_session_factory() as session:
+            res = await session.execute(select(User.tg_id).where(User.role == "admin"))
+            for uid in res.scalars().all():
+                admin_ids.add(uid)
+    except Exception as e:
+        logger.error(f"Error fetching admin IDs from DB: {e}")
+
     if not admin_ids:
-        logger.warning("No admin Telegram IDs configured in ADMIN_TG_IDS to notify.")
+        logger.warning("No admin Telegram IDs found to notify.")
         return
 
     text = (

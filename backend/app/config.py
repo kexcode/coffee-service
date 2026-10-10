@@ -7,14 +7,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     BOT_TOKEN: str = ""
     ADMIN_TG_IDS: str = ""
+    ADMIN_USERNAMES: str = "leorapatskiy"
     WEBAPP_URL: str = "http://localhost:3000"
-    PAYPAL_ME_URL: str = "https://paypal.me/officecoffee"
+    PAYPAL_ME_URL: str = "https://paypal.me/Rapatskiy"
     MONTHLY_TARGET: float = 150.0
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/coffee.db"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )
@@ -30,8 +31,18 @@ class Settings(BaseSettings):
                 ids.append(int(cleaned))
         return ids
 
-    def is_admin(self, tg_id: int) -> bool:
-        return tg_id in self.admin_id_list
+    @property
+    def admin_usernames_list(self) -> List[str]:
+        if not self.ADMIN_USERNAMES:
+            return []
+        return [u.strip().lower().lstrip("@") for u in self.ADMIN_USERNAMES.split(",") if u.strip()]
+
+    def is_admin(self, tg_id: int, username: str | None = None) -> bool:
+        if tg_id in self.admin_id_list:
+            return True
+        if username and username.lower().lstrip("@") in self.admin_usernames_list:
+            return True
+        return False
 
 
 @lru_cache()

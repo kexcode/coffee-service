@@ -46,6 +46,15 @@ def get_category_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+async def is_caller_admin(tg_id: int, username: str | None) -> bool:
+    if settings.is_admin(tg_id, username):
+        return True
+    async with async_session_factory() as session:
+        res = await session.execute(select(User).where(User.tg_id == tg_id))
+        user = res.scalar_one_or_none()
+        return user is not None and user.role == "admin"
+
+
 @router.message(CommandStart())
 async def handle_start(message: Message):
     user_id = message.from_user.id
@@ -57,7 +66,8 @@ async def handle_start(message: Message):
         result = await session.execute(select(User).where(User.tg_id == user_id))
         user = result.scalar_one_or_none()
 
-        role = "admin" if settings.is_admin(user_id) else "user"
+        is_admin = settings.is_admin(user_id, username)
+        role = "admin" if is_admin else "user"
 
         if not user:
             user = User(
@@ -71,8 +81,14 @@ async def handle_start(message: Message):
             session.add(user)
             await session.commit()
         else:
-            if settings.is_admin(user_id) and user.role != "admin":
+            updated = False
+            if user.username != username:
+                user.username = username
+                updated = True
+            if is_admin and user.role != "admin":
                 user.role = "admin"
+                updated = True
+            if updated:
                 await session.commit()
 
     keyboard = InlineKeyboardMarkup(
@@ -105,7 +121,7 @@ async def handle_start(message: Message):
 @router.callback_query(F.data.startswith("approve_cash:"))
 async def handle_approve_cash(callback: CallbackQuery):
     admin_id = callback.from_user.id
-    if not settings.is_admin(admin_id):
+    if not await is_caller_admin(admin_id, callback.from_user.username):
         await callback.answer("⚠️ Only coffee admins can confirm cash payments.", show_alert=True)
         return
 
@@ -160,7 +176,7 @@ async def handle_approve_cash(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("reject_cash:"))
 async def handle_reject_cash(callback: CallbackQuery):
     admin_id = callback.from_user.id
-    if not settings.is_admin(admin_id):
+    if not await is_caller_admin(admin_id, callback.from_user.username):
         await callback.answer("⚠️ Only coffee admins can reject cash payments.", show_alert=True)
         return
 
@@ -263,7 +279,7 @@ async def handle_skip_month(callback: CallbackQuery):
 
 @router.message(Command("add_expense"))
 async def cmd_add_expense(message: Message, state: FSMContext):
-    if not settings.is_admin(message.from_user.id):
+    if not await is_caller_admin(message.from_user.id, message.from_user.username):
         await message.answer("⚠️ You must be a registered coffee admin to use /add_expense.")
         return
 

@@ -109,7 +109,7 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     # Determine role
-    is_admin_configured = settings.is_admin(tg_id)
+    is_admin_configured = settings.is_admin(tg_id, username)
     resolved_role = "admin" if (is_admin_configured or role_override == "admin") else "user"
 
     if not user:
