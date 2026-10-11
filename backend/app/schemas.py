@@ -9,11 +9,35 @@ class UserOut(BaseModel):
     username: Optional[str] = None
     first_name: str
     role: str
+    is_verified: bool
     pledge_amount: float
     pledge_active: bool
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    tg_id: int
+    username: Optional[str] = None
+    first_name: str
+    role: str
+    is_verified: bool
+    pledge_amount: float
+    pledge_active: bool
+    total_donated: float
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserRoleUpdate(BaseModel):
+    role: Literal["admin", "user"]
+
+
+class UserVerifyUpdate(BaseModel):
+    is_verified: bool
 
 
 class PledgeUpdate(BaseModel):
@@ -59,6 +83,7 @@ class DonationUpdate(BaseModel):
     amount: Optional[float] = Field(None, gt=0.0)
     payment_method: Optional[Literal["cash", "paypal", "card"]] = None
     status: Optional[Literal["confirmed", "pending", "rejected"]] = None
+    user_id: Optional[int] = None
 
 
 class ExpenseOut(BaseModel):
@@ -74,6 +99,7 @@ class ExpenseOut(BaseModel):
 
 
 class DashboardOut(BaseModel):
+    is_verified: bool
     total_balance: float
     monthly_target: float
     monthly_collected: float
@@ -94,6 +120,7 @@ class FeedItem(BaseModel):
     category: Optional[str] = None
     payment_method: Optional[str] = None
     status: Optional[str] = None
+    user_id: Optional[int] = None
     actor_name: str
     actor_username: Optional[str] = None
     receipt_url: Optional[str] = None

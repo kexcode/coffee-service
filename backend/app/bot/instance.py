@@ -72,3 +72,31 @@ async def notify_admins_cash_donation(donation_id: int, user_first_name: str, am
             await bot.send_message(chat_id=admin_id, text=text, reply_markup=keyboard)
         except Exception as e:
             logger.error(f"Failed to send admin notification to {admin_id}: {e}")
+
+
+async def notify_user_verified(tg_id: int):
+    """
+    Sends a congratulatory notification to a user when their membership is verified by an admin.
+    """
+    if not bot or not tg_id:
+        return
+    try:
+        from aiogram.types import WebAppInfo
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="☕ Open Coffee Dashboard",
+                        web_app=WebAppInfo(url=settings.WEBAPP_URL),
+                    )
+                ]
+            ]
+        )
+        text = (
+            "🎉 <b>You are verified!</b>\n\n"
+            "An administrator has verified your office coffee community membership.\n"
+            "You now have full access to view the live treasury pot, spending breakdown, and audit feed."
+        )
+        await bot.send_message(chat_id=tg_id, text=text, reply_markup=keyboard)
+    except Exception as e:
+        logger.warning(f"Could not send verification notification to tg_id {tg_id}: {e}")

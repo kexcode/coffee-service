@@ -70,16 +70,19 @@ async def handle_start(message: Message):
         role = "admin" if is_admin else "user"
 
         if not user:
+            is_verified = True if role == "admin" else False
             user = User(
                 tg_id=user_id,
                 first_name=first_name,
                 username=username,
                 role=role,
+                is_verified=is_verified,
                 pledge_amount=0.0,
                 pledge_active=False,
             )
             session.add(user)
             await session.commit()
+            user_verified = is_verified
         else:
             updated = False
             if user.username != username:
@@ -87,9 +90,11 @@ async def handle_start(message: Message):
                 updated = True
             if is_admin and user.role != "admin":
                 user.role = "admin"
+                user.is_verified = True
                 updated = True
             if updated:
                 await session.commit()
+            user_verified = user.is_verified
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -102,10 +107,17 @@ async def handle_start(message: Message):
         ]
     )
 
+    status_note = (
+        "✅ <b>Status:</b> Verified Community Member\n\n"
+        if user_verified
+        else "⏳ <b>Status:</b> Verification Pending (You can freely contribute, and pot balance/logs will unlock once an admin verifies your membership)\n\n"
+    )
+
     welcome_text = (
         f"☕ <b>Welcome to the Office Coffee Community, {first_name}!</b>\n\n"
-        f"We share the coffee station together with full transparency:\n"
-        f"• <b>Live Treasury:</b> Track current coffee pot funds & expenses\n"
+        f"{status_note}"
+        f"We share the coffee station together with transparency:\n"
+        f"• <b>Live Treasury:</b> Track coffee pot funds & expenses\n"
         f"• <b>Monthly Pledges:</b> Soft reminders to keep beans stocked\n"
         f"• <b>Easy Contributions:</b> Support via PayPal or cash jar\n\n"
         f"Tap the button below to launch the Mini App dashboard."

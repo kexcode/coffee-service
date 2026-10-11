@@ -1,4 +1,4 @@
-import { DashboardData, FeedItem, User, Donation, ExpensePayload } from '../types';
+import { DashboardData, FeedItem, User, Donation, ExpensePayload, AdminUser } from '../types';
 
 let currentInitData = '';
 let devUserOverride: { id: number; first_name: string; username?: string; role?: string } | null = null;
@@ -100,7 +100,7 @@ export const api = {
     request<void>(`/api/admin/expenses/${expenseId}`, {
       method: 'DELETE',
     }),
-  adminUpdateDonation: (donationId: number, data: { amount?: number; payment_method?: string; status?: string }) =>
+  adminUpdateDonation: (donationId: number, data: { amount?: number; payment_method?: string; status?: string; user_id?: number }) =>
     request<Donation>(`/api/admin/donations/${donationId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -118,6 +118,18 @@ export const api = {
   adminRejectDonation: (donationId: number) =>
     request<Donation>(`/api/admin/donations/${donationId}/reject`, {
       method: 'POST',
+    }),
+  adminGetUsers: () =>
+    request<AdminUser[]>('/api/admin/users'),
+  adminUpdateUserRole: (userId: number, role: 'admin' | 'user') =>
+    request<User>(`/api/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+  adminUpdateUserVerification: (userId: number, is_verified: boolean) =>
+    request<User>(`/api/admin/users/${userId}/verify`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_verified }),
     }),
   adminGetSettings: () =>
     request<Record<string, string>>('/api/admin/settings'),

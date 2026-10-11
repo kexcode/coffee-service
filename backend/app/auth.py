@@ -113,11 +113,13 @@ async def get_current_user(
     resolved_role = "admin" if (is_admin_configured or role_override == "admin") else "user"
 
     if not user:
+        is_verified = True if (is_admin_configured or resolved_role == "admin") else False
         user = User(
             tg_id=tg_id,
             first_name=first_name,
             username=username,
             role=resolved_role,
+            is_verified=is_verified,
             pledge_amount=0.0,
             pledge_active=False,
         )
@@ -135,9 +137,15 @@ async def get_current_user(
             updated = True
         if is_admin_configured and user.role != "admin":
             user.role = "admin"
+            user.is_verified = True
             updated = True
         elif role_override and user.role != role_override:
             user.role = role_override
+            if role_override == "admin":
+                user.is_verified = True
+            updated = True
+        elif (user.role == "admin" or is_admin_configured) and not user.is_verified:
+            user.is_verified = True
             updated = True
 
         if updated:

@@ -26,6 +26,29 @@ async def get_dashboard(
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
+    # PayPal link setting
+    paypal_res = await db.execute(select(Setting).where(Setting.key == "paypal_me_url"))
+    paypal_setting = paypal_res.scalar_one_or_none()
+    paypal_me_url = paypal_setting.value if paypal_setting else settings.PAYPAL_ME_URL
+
+    is_verified_member = bool(current_user.is_verified or current_user.role == "admin")
+
+    # If user is not verified, return restricted dashboard with donation capabilities intact
+    if not is_verified_member:
+        return DashboardOut(
+            is_verified=False,
+            total_balance=0.0,
+            monthly_target=0.0,
+            monthly_collected=0.0,
+            monthly_expenses=0.0,
+            total_donations=0.0,
+            total_expenses=0.0,
+            active_pledgers_count=0,
+            total_pledged_monthly=0.0,
+            category_breakdown={cat: 0.0 for cat in ALL_CATEGORIES},
+            paypal_me_url=paypal_me_url,
+        )
+
     # Total confirmed donations
     donations_total_res = await db.execute(
         select(func.coalesce(func.sum(Donation.amount), 0.0)).where(Donation.status == "confirmed")
@@ -68,11 +91,6 @@ async def get_dashboard(
     target_setting = target_res.scalar_one_or_none()
     monthly_target = float(target_setting.value) if target_setting else settings.MONTHLY_TARGET
 
-    # PayPal link setting
-    paypal_res = await db.execute(select(Setting).where(Setting.key == "paypal_me_url"))
-    paypal_setting = paypal_res.scalar_one_or_none()
-    paypal_me_url = paypal_setting.value if paypal_setting else settings.PAYPAL_ME_URL
-
     # Active pledgers count and total pledged monthly
     pledgers_res = await db.execute(
         select(
@@ -91,6 +109,7 @@ async def get_dashboard(
         category_map[cat] = round(float(amt), 2)
 
     return DashboardOut(
+        is_verified=True,
         total_balance=round(total_balance, 2),
         monthly_target=round(monthly_target, 2),
         monthly_collected=round(monthly_collected, 2),
@@ -109,6 +128,10 @@ async def get_feed(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Restrict transparency logs to verified members
+    if not (current_user.is_verified or current_user.role == "admin"):
+        return []
+
     # Fetch latest confirmed donations
     donations_res = await db.execute(
         select(Donation, User)
@@ -137,6 +160,7 @@ async def get_feed(
                 description=f"Contribution via {method_label}",
                 payment_method=donation.payment_method,
                 status=donation.status,
+                user_id=donation.user_id,
                 actor_name=user.first_name,
                 actor_username=user.username,
                 created_at=donation.created_at,
@@ -151,6 +175,7 @@ async def get_feed(
                 amount=exp.amount,
                 description=exp.description,
                 category=exp.category,
+                user_id=None,
                 actor_name="Coffee Team",
                 receipt_url=exp.receipt_url,
                 created_at=exp.created_at,

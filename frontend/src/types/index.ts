@@ -4,12 +4,18 @@ export interface User {
   username?: string | null;
   first_name: string;
   role: 'admin' | 'user';
+  is_verified: boolean;
   pledge_amount: number;
   pledge_active: boolean;
   created_at: string;
 }
 
+export interface AdminUser extends User {
+  total_donated: number;
+}
+
 export interface DashboardData {
+  is_verified: boolean;
   total_balance: number;
   monthly_target: number;
   monthly_collected: number;
@@ -30,6 +36,7 @@ export interface FeedItem {
   category?: string | null;
   payment_method?: string | null;
   status?: string | null;
+  user_id?: number | null;
   actor_name: string;
   actor_username?: string | null;
   receipt_url?: string | null;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Coffee, PieChart, History, Shield, AlertCircle } from 'lucide-react';
+import { Coffee, PieChart, History, Shield, AlertCircle, Lock } from 'lucide-react';
 import { useTelegram } from './hooks/useTelegram';
 import { setApiAuth, api } from './services/api';
 import { User, DashboardData, FeedItem } from './types';
@@ -76,6 +76,7 @@ export function App() {
     first_name: tgUser.first_name,
     username: tgUser.username,
     role: (tgUser.username?.toLowerCase() === 'leorapatskiy' || devRole === 'admin' ? 'admin' : 'user') as 'admin' | 'user',
+    is_verified: tgUser.username?.toLowerCase() === 'leorapatskiy' || devRole === 'admin',
     pledge_amount: 0,
     pledge_active: false,
     created_at: new Date().toISOString(),
@@ -89,6 +90,7 @@ export function App() {
   };
 
   const isAdmin = effectiveUser?.role === 'admin';
+  const isVerified = Boolean(effectiveUser?.is_verified || isAdmin);
 
   return (
     <div className="min-h-screen bg-coffee-cream pb-24 text-coffee-espresso max-w-md mx-auto relative shadow-2xl overflow-x-hidden">
@@ -105,6 +107,18 @@ export function App() {
           <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {!isVerified && (
+          <div className="p-3 bg-amber-50 border border-amber-200/80 text-amber-900 rounded-2xl flex items-start gap-2.5 text-xs shadow-sm">
+            <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Membership Verification Pending</span>
+              <span className="text-[11px] text-amber-800 leading-tight block mt-0.5">
+                You can freely pitch into the coffee jar below. Live treasury balances and logs will unlock once an admin verifies your membership.
+              </span>
+            </div>
           </div>
         )}
 
@@ -210,6 +224,7 @@ export function App() {
               items={feed}
               openLink={openLink}
               isAdmin={isAdmin}
+              isVerified={isVerified}
               onEditEntry={(entry) => setSelectedEntryToEdit(entry)}
             />
           </div>

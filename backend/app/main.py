@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import get_settings
 from app.database import engine, Base, async_session_factory
@@ -26,6 +26,12 @@ settings = get_settings()
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Schema migration check: ensure is_verified column exists
+        columns_res = await conn.execute(text("PRAGMA table_info(users)"))
+        column_names = [row[1] for row in columns_res.fetchall()]
+        if "is_verified" not in column_names:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
+            logger.info("Migrated SQLite schema: added is_verified column to users table.")
 
     # Pre-seed initial settings and admins if not present
     async with async_session_factory() as session:
@@ -44,18 +50,24 @@ async def init_db():
             res = await session.execute(select(User).where(User.tg_id == admin_id))
             admin_user = res.scalar_one_or_none()
             if admin_user:
-                if admin_user.role != "admin":
-                    admin_user.role = "admin"
+                admin_user.role = "admin"
+                admin_user.is_verified = True
             else:
                 session.add(
                     User(
                         tg_id=admin_id,
                         first_name="Admin",
                         role="admin",
+                        is_verified=True,
                         pledge_amount=0.0,
                         pledge_active=False,
                     )
                 )
+
+        # Ensure all existing admins are marked as verified
+        admins_res = await session.execute(select(User).where(User.role == "admin"))
+        for adm in admins_res.scalars().all():
+            adm.is_verified = True
 
         await session.commit()
     logger.info("Database schema initialized and default settings verified.")

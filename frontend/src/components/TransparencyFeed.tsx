@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, FileText, ExternalLink, Calendar, Edit2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, FileText, ExternalLink, Calendar, Edit2, Lock } from 'lucide-react';
 import { FeedItem } from '../types';
 
 interface TransparencyFeedProps {
   items: FeedItem[];
   openLink: (url: string) => void;
   isAdmin?: boolean;
+  isVerified?: boolean;
   onEditEntry?: (item: FeedItem) => void;
 }
 
@@ -13,9 +14,24 @@ export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({
   items,
   openLink,
   isAdmin,
+  isVerified = true,
   onEditEntry,
 }) => {
   const [filter, setFilter] = useState<'all' | 'donation' | 'expense'>('all');
+
+  if (!isVerified) {
+    return (
+      <div className="bg-white rounded-3xl p-6 shadow-warm border border-amber-200/80 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h3 className="text-sm font-bold text-coffee-espresso">Transparency Audit Gated</h3>
+        <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto">
+          The live transaction audit and expense logs are only visible to verified community members. Ask an admin to verify your account to view the feed.
+        </p>
+      </div>
+    );
+  }
 
   const filteredItems = items.filter((item) => {
     if (filter === 'all') return true;

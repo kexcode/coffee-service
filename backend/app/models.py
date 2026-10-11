@@ -13,6 +13,7 @@ class User(Base):
     username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), default="user")  # 'admin' | 'user'
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     pledge_amount: Mapped[float] = mapped_column(Float, default=0.0)
     pledge_active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

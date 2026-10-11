@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Trash2, Edit3, AlertCircle } from 'lucide-react';
-import { FeedItem, ExpensePayload } from '../types';
+import { FeedItem, ExpensePayload, AdminUser } from '../types';
 import { api } from '../services/api';
 
 interface EditEntryModalProps {
@@ -41,11 +41,21 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
   // Donation form state
   const [paymentMethod, setPaymentMethod] = useState<string>(entry.payment_method || 'cash');
   const [donationStatus, setDonationStatus] = useState<string>(entry.status || 'confirmed');
+  const [selectedUserId, setSelectedUserId] = useState<number | undefined>(entry.user_id || undefined);
+  const [users, setUsers] = useState<AdminUser[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.adminGetUsers()
+        .then((data) => setUsers(data))
+        .catch((err) => console.error('Failed to load users for modal:', err));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (entry) {
@@ -57,6 +67,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
       } else {
         setPaymentMethod(entry.payment_method || 'cash');
         setDonationStatus(entry.status || 'confirmed');
+        setSelectedUserId(entry.user_id || undefined);
       }
       setConfirmDelete(false);
       setError(null);
@@ -86,6 +97,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
           amount: parsedAmount,
           payment_method: paymentMethod,
           status: donationStatus,
+          user_id: selectedUserId,
         });
       }
       triggerHaptic?.('success');
@@ -220,9 +232,26 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
           ) : (
             /* If Donation: donor name, payment method, status */
             <>
-              <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200/70 text-xs">
-                <span className="text-stone-400">Contributor: </span>
-                <strong className="text-coffee-espresso">{entry.actor_name}</strong>
+              <div>
+                <label className="block text-[11px] font-semibold text-coffee-latte uppercase tracking-wider mb-1">
+                  Contributor
+                </label>
+                <select
+                  value={selectedUserId || ''}
+                  onChange={(e) => setSelectedUserId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full text-xs font-semibold p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-coffee-espresso"
+                >
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.first_name} {u.username ? `(@${u.username})` : ''}
+                    </option>
+                  ))}
+                  {selectedUserId && !users.some((u) => u.id === selectedUserId) && (
+                    <option value={selectedUserId}>
+                      {entry.actor_name} {entry.actor_username ? `(@${entry.actor_username})` : ''}
+                    </option>
+                  )}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

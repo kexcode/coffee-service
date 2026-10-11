@@ -1,7 +1,7 @@
 from typing import List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, case
 
 from app.auth import get_current_admin
 from app.database import get_db
@@ -13,9 +13,13 @@ from app.schemas import (
     DonationOut,
     DonationUpdate,
     SettingUpdate,
+    UserOut,
+    AdminUserOut,
+    UserRoleUpdate,
+    UserVerifyUpdate,
 )
 from app.bot.scheduler import send_monthly_pledge_reminders
-from app.config import get_settings
+from app.config import get_settings, Settings
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Management"])
 
@@ -197,6 +201,13 @@ async def update_donation(
         donation.payment_method = payload.payment_method
     if payload.status is not None:
         donation.status = payload.status
+    if payload.user_id is not None and payload.user_id != donation.user_id:
+        u_res = await db.execute(select(User).where(User.id == payload.user_id))
+        target_user = u_res.scalar_one_or_none()
+        if not target_user:
+            raise HTTPException(status_code=400, detail="Target user for contributor assignment not found")
+        donation.user_id = target_user.id
+        user = target_user
 
     await db.commit()
     await db.refresh(donation)
@@ -272,3 +283,99 @@ async def trigger_reminders_manually(
 ):
     await send_monthly_pledge_reminders()
     return {"message": "Monthly pledge reminders triggered successfully."}
+
+
+@router.get("/users", response_model=List[AdminUserOut])
+async def get_all_users(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    query = (
+        select(
+            User,
+            func.coalesce(
+                func.sum(
+                    case((Donation.status == "confirmed", Donation.amount), else_=0.0)
+                ),
+                0.0,
+            ).label("total_donated"),
+        )
+        .outerjoin(Donation, User.id == Donation.user_id)
+        .group_by(User.id)
+        .order_by(User.created_at.desc())
+    )
+    res = await db.execute(query)
+    results: List[AdminUserOut] = []
+    for user, total_donated in res.all():
+        results.append(
+            AdminUserOut(
+                id=user.id,
+                tg_id=user.tg_id,
+                username=user.username,
+                first_name=user.first_name,
+                role=user.role,
+                is_verified=user.is_verified,
+                pledge_amount=user.pledge_amount,
+                pledge_active=user.pledge_active,
+                total_donated=round(float(total_donated), 2),
+                created_at=user.created_at,
+            )
+        )
+    return results
+
+
+@router.patch("/users/{user_id}/role", response_model=UserOut)
+async def update_user_role(
+    user_id: int,
+    payload: UserRoleUpdate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    res = await db.execute(select(User).where(User.id == user_id))
+    target_user = res.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_user.id == admin.id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="Cannot demote yourself from admin")
+
+    if settings.is_admin(target_user.tg_id, target_user.username) and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="Cannot demote configured superadmin")
+
+    target_user.role = payload.role
+    if payload.role == "admin":
+        target_user.is_verified = True
+
+    await db.commit()
+    await db.refresh(target_user)
+    return target_user
+
+
+@router.patch("/users/{user_id}/verify", response_model=UserOut)
+async def update_user_verification(
+    user_id: int,
+    payload: UserVerifyUpdate,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    res = await db.execute(select(User).where(User.id == user_id))
+    target_user = res.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target_user.role == "admin" and not payload.is_verified:
+        raise HTTPException(status_code=400, detail="Admins must remain verified")
+
+    was_verified = target_user.is_verified
+    target_user.is_verified = payload.is_verified
+    await db.commit()
+    await db.refresh(target_user)
+
+    # Notify user via bot if they were just approved
+    if not was_verified and payload.is_verified and target_user.tg_id:
+        from app.bot.instance import notify_user_verified
+        await notify_user_verified(target_user.tg_id)
+
+    return target_user

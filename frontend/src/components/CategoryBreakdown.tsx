@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coffee, FileText, Sparkles, Wrench, Landmark } from 'lucide-react';
+import { Coffee, FileText, Sparkles, Wrench, Landmark, Lock } from 'lucide-react';
 import { DashboardData } from '../types';
 
 interface CategoryBreakdownProps {
@@ -23,6 +23,20 @@ const CATEGORIES: CategoryMeta[] = [
 ];
 
 export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({ data }) => {
+  if (data && !data.is_verified) {
+    return (
+      <div className="bg-white rounded-3xl p-6 shadow-warm border border-amber-200/80 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h3 className="text-sm font-bold text-coffee-espresso">Spend Distribution Gated</h3>
+        <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto">
+          Detailed itemized breakdowns of beans, filters, and repairs are restricted to verified members.
+        </p>
+      </div>
+    );
+  }
+
   const breakdown = data?.category_breakdown || {};
   const totalSpent = data?.total_expenses || 0;
 

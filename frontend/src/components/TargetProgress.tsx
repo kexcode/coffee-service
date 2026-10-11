@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, ArrowDownRight, ArrowUpRight, Sparkles } from 'lucide-react';
+import { TrendingUp, ArrowDownRight, ArrowUpRight, Sparkles, Lock } from 'lucide-react';
 import { DashboardData } from '../types';
 
 interface TargetProgressProps {
@@ -7,6 +7,23 @@ interface TargetProgressProps {
 }
 
 export const TargetProgress: React.FC<TargetProgressProps> = ({ data }) => {
+  if (data && !data.is_verified) {
+    return (
+      <div className="bg-white rounded-3xl p-6 shadow-warm border border-amber-200/80 text-center relative overflow-hidden">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h3 className="text-base font-bold text-coffee-espresso">Treasury Pot Gated</h3>
+        <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto">
+          Live pot balance & goals are restricted to verified office members. You are free to pitch into the coffee jar anytime below!
+        </p>
+        <div className="mt-3 p-2 bg-amber-50 rounded-xl border border-amber-200/60 text-[11px] text-amber-900 font-semibold inline-block">
+          ⏳ Verification Pending • Ask an admin to verify you
+        </div>
+      </div>
+    );
+  }
+
   const balance = data?.total_balance ?? 0;
   const target = data?.monthly_target ?? 150;
   const collected = data?.monthly_collected ?? 0;
