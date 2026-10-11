@@ -201,10 +201,21 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
 
               {/* Payment Methods */}
               <div className="space-y-2.5 pt-1">
-              <button
-                type="button"
-                onClick={handlePayPal}
-                className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+              <a
+                href={paypalUrl || 'https://paypal.me'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  triggerHaptic?.('medium');
+                  const twa = (window as any).Telegram?.WebApp;
+                  const platform = (twa?.platform || '').toLowerCase();
+                  const isMobileTma = platform === 'ios' || platform === 'android';
+                  if (isMobileTma) {
+                    e.preventDefault();
+                    handlePayPal();
+                  }
+                }}
+                className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all text-center cursor-pointer"
               >
                 <span>
                   {getEffectiveAmount() > 0
@@ -212,7 +223,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
                     : 'Pay via PayPal'}
                 </span>
                 <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-              </button>
+              </a>
 
               <button
                 type="button"

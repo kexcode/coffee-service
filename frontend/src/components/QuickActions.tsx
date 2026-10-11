@@ -27,17 +27,26 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         <span>Contribute to Coffee Pot</span>
       </button>
 
-      <button
-        onClick={() => {
+      <a
+        href={paypalUrl || 'https://paypal.me'}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
           triggerHaptic?.('light');
-          openLink(paypalUrl);
+          const twa = (window as any).Telegram?.WebApp;
+          const platform = (twa?.platform || '').toLowerCase();
+          const isMobileTma = platform === 'ios' || platform === 'android';
+          if (isMobileTma) {
+            e.preventDefault();
+            openLink(paypalUrl);
+          }
         }}
         className="w-full py-3.5 px-4 bg-white hover:bg-coffee-cream active:scale-[0.98] border border-coffee-border text-coffee-espresso rounded-2xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
       >
         <span className="text-sky-700 font-bold">PayPal.me</span>
         <span className="text-stone-500">Quick link</span>
         <ExternalLink className="w-3.5 h-3.5 text-stone-400 ml-0.5" />
-      </button>
+      </a>
     </div>
   );
 };

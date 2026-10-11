@@ -92,14 +92,40 @@ export function useTelegram() {
     }
   };
 
+  const isTelegramWeb = () => {
+    if (typeof window === 'undefined') return false;
+    // Inside Telegram Web (web.telegram.org/a or /k), the app is hosted inside an iframe
+    if (window.parent && window.parent !== window) return true;
+    const twa = (window as any).Telegram?.WebApp || WebApp;
+    const platform = (twa?.platform || '').toLowerCase();
+    return platform === 'weba' || platform === 'webk' || platform === 'web';
+  };
+
   const openLink = (url: string) => {
     try {
       const twa = (window as any).Telegram?.WebApp || WebApp;
-      if (isTma && twa?.openLink) {
+      const platform = (twa?.platform || '').toLowerCase();
+      const isMobileClient = platform === 'ios' || platform === 'android';
+
+      if (isTma && !isTelegramWeb() && isMobileClient && twa?.openLink) {
+        // Native mobile Telegram client handles openLink via native browser/view
         twa.openLink(url);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
       }
+
+      // For Telegram Web (iframe), desktop browser, or fallback:
+      // Direct anchor click inside user event handler avoids iframe popup blocking
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) {
+          document.body.removeChild(a);
+        }
+      }, 100);
     } catch {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
@@ -110,6 +136,7 @@ export function useTelegram() {
     initData,
     tgUser,
     isTma,
+    isTelegramWeb: isTelegramWeb(),
     triggerHaptic,
     openLink,
     WebApp,
