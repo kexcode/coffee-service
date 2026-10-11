@@ -28,7 +28,7 @@ class Expense(Base):
     category: Mapped[str] = mapped_column(
         String(64),
         nullable=False
-    )  # 'beans', 'filters', 'cleaning', 'maintenance_repair', 'depreciation_reserve'
+    )  # 'beans', 'sweets', 'filters', 'cleaning', 'maintenance_repair', 'depreciation_reserve'
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     receipt_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)

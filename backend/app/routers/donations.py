@@ -16,8 +16,33 @@ async def create_cash_donation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    target_user_id = current_user.id
+    target_user_name = current_user.first_name
+    target_username = current_user.username
+
+    if payload.is_anonymous:
+        from sqlalchemy import select
+        anon_res = await db.execute(select(User).where(User.tg_id == 0))
+        anon_user = anon_res.scalar_one_or_none()
+        if not anon_user:
+            anon_user = User(
+                tg_id=0,
+                username="anonymous",
+                first_name="Anonymous",
+                role="user",
+                is_verified=True,
+                pledge_amount=0.0,
+                pledge_active=False,
+            )
+            db.add(anon_user)
+            await db.flush()
+
+        target_user_id = anon_user.id
+        target_user_name = "Anonymous"
+        target_username = None
+
     donation = Donation(
-        user_id=current_user.id,
+        user_id=target_user_id,
         amount=round(payload.amount, 2),
         payment_method="cash",
         status="pending",
@@ -29,7 +54,7 @@ async def create_cash_donation(
     # Notify admins asynchronously via bot
     await notify_admins_cash_donation(
         donation_id=donation.id,
-        user_first_name=current_user.first_name,
+        user_first_name=target_user_name,
         amount=donation.amount,
     )
 
@@ -40,8 +65,8 @@ async def create_cash_donation(
         payment_method=donation.payment_method,
         status=donation.status,
         created_at=donation.created_at,
-        user_first_name=current_user.first_name,
-        user_username=current_user.username,
+        user_first_name=target_user_name,
+        user_username=target_username,
     )
 
 

@@ -69,6 +69,22 @@ async def init_db():
         for adm in admins_res.scalars().all():
             adm.is_verified = True
 
+        # Ensure Anonymous system user exists (tg_id = 0)
+        anon_res = await session.execute(select(User).where(User.tg_id == 0))
+        anon_user = anon_res.scalar_one_or_none()
+        if not anon_user:
+            session.add(
+                User(
+                    tg_id=0,
+                    first_name="Anonymous",
+                    username="anonymous",
+                    role="user",
+                    is_verified=True,
+                    pledge_amount=0.0,
+                    pledge_active=False,
+                )
+            )
+
         await session.commit()
     logger.info("Database schema initialized and default settings verified.")
 

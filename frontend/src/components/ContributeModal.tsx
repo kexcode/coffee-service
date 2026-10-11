@@ -31,6 +31,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
   const [isCustom, setIsCustom] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [cashSuccess, setCashSuccess] = useState<boolean>(false);
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -67,7 +68,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
     setIsSubmitting(true);
     setError(null);
     try {
-      await api.submitCashDonation(amount);
+      await api.submitCashDonation(amount, isAnonymous);
       triggerHaptic?.('success');
       setCashSuccess(true);
       onSuccess();
@@ -81,6 +82,7 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
 
   const handleClose = () => {
     setCashSuccess(false);
+    setIsAnonymous(false);
     setError(null);
     onClose();
   };
@@ -103,7 +105,8 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
             </div>
             <h3 className="text-lg font-bold text-coffee-espresso">Cash Contribution Logged!</h3>
             <p className="text-xs text-stone-600 mt-2 leading-relaxed">
-              We logged your <strong className="text-coffee-espresso">€{getEffectiveAmount().toFixed(2)}</strong> cash donation.
+              We logged your <strong className="text-coffee-espresso">€{getEffectiveAmount().toFixed(2)}</strong> cash donation
+              {isAnonymous ? ' anonymously' : ''}.
               Please drop the coins/cash into the coffee box. An admin has been notified in Telegram to verify it.
             </p>
             <button
@@ -181,8 +184,31 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
               </div>
             </div>
 
-            {/* Payment Methods */}
-            <div className="space-y-2.5 pt-2">
+              {/* Anonymous Cash Jar Option */}
+              <div className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-50 border border-stone-200/80 mb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-base">🎭</span>
+                  <div>
+                    <div className="text-xs font-bold text-coffee-espresso">Donate Anonymously</div>
+                    <div className="text-[10px] text-stone-400">Keep donor attribution hidden</div>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAnonymous}
+                    onChange={(e) => {
+                      setIsAnonymous(e.target.checked);
+                      triggerHaptic?.('light');
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-coffee-espresso"></div>
+                </label>
+              </div>
+
+              {/* Payment Methods */}
+              <div className="space-y-2.5 pt-1">
               <button
                 type="button"
                 onClick={handlePayPal}

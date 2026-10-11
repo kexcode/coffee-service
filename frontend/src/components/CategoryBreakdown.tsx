@@ -1,5 +1,5 @@
 import React from 'react';
-import { Coffee, FileText, Sparkles, Wrench, Landmark, Lock } from 'lucide-react';
+import { Coffee, Cookie, FileText, Sparkles, Wrench, Landmark, Lock } from 'lucide-react';
 import { DashboardData } from '../types';
 
 interface CategoryBreakdownProps {
@@ -16,6 +16,7 @@ interface CategoryMeta {
 
 const CATEGORIES: CategoryMeta[] = [
   { key: 'beans', name: 'Coffee Beans', icon: Coffee, color: 'text-amber-800 bg-amber-100', barColor: 'bg-amber-600' },
+  { key: 'sweets', name: 'Sweets & Snacks', icon: Cookie, color: 'text-rose-800 bg-rose-100', barColor: 'bg-rose-500' },
   { key: 'filters', name: 'Filters & Paper', icon: FileText, color: 'text-stone-700 bg-stone-200', barColor: 'bg-stone-500' },
   { key: 'cleaning', name: 'Cleaning & Descale', icon: Sparkles, color: 'text-cyan-800 bg-cyan-100', barColor: 'bg-cyan-600' },
   { key: 'maintenance_repair', name: 'Maintenance & Parts', icon: Wrench, color: 'text-orange-800 bg-orange-100', barColor: 'bg-orange-500' },

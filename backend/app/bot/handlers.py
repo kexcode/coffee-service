@@ -31,6 +31,7 @@ class AddExpenseState(StatesGroup):
 
 EXPENSE_CATEGORIES = [
     ("☕ Coffee Beans", "beans"),
+    ("🍪 Sweets & Snacks", "sweets"),
     ("📄 Paper & Filters", "filters"),
     ("🧼 Cleaning & Descaling", "cleaning"),
     ("🔧 Maintenance & Repair", "maintenance_repair"),

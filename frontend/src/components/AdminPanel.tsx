@@ -13,25 +13,34 @@ import {
   Search,
   AlertCircle,
   Clock,
+  FileSpreadsheet,
+  UploadCloud,
+  Download,
+  CheckCircle2,
+  Copy,
+  Sparkles,
 } from 'lucide-react';
-import { Donation, ExpensePayload, AdminUser } from '../types';
+import { Donation, ExpensePayload, AdminUser, CSVImportSummary } from '../types';
 import { api } from '../services/api';
 
 interface AdminPanelProps {
   onDataChanged: () => void;
   triggerHaptic?: (type: 'light' | 'success' | 'error') => void;
+  openLink?: (url: string) => void;
 }
 
 const EXPENSE_CATEGORIES: { key: ExpensePayload['category']; label: string }[] = [
   { key: 'beans', label: '☕ Coffee Beans' },
+  { key: 'sweets', label: '🍪 Sweets & Snacks' },
   { key: 'filters', label: '📄 Paper & Filters' },
   { key: 'cleaning', label: '🧼 Cleaning & Descaling' },
   { key: 'maintenance_repair', label: '🔧 Maintenance & Parts' },
   { key: 'depreciation_reserve', label: '🏦 Equipment Reserve' },
 ];
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHaptic }) => {
-  const [adminSection, setAdminSection] = useState<'operations' | 'members' | 'settings'>('operations');
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHaptic, openLink }) => {
+  const [adminSection, setAdminSection] = useState<'operations' | 'members' | 'import' | 'settings'>('operations');
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
   const [pendingDonations, setPendingDonations] = useState<Donation[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userSearch, setUserSearch] = useState('');
@@ -45,6 +54,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHa
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [expenseSuccess, setExpenseSuccess] = useState(false);
 
+  // CSV Import state
+  const [csvContent, setCsvContent] = useState('');
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvPreview, setCsvPreview] = useState<CSVImportSummary | null>(null);
+  const [isPreviewingCsv, setIsPreviewingCsv] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [csvImportSuccess, setCsvImportSuccess] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [showDirectPaste, setShowDirectPaste] = useState(false);
+
   // Settings state
   const [monthlyTargetInput, setMonthlyTargetInput] = useState('');
   const [paypalInput, setPaypalInput] = useState('');
@@ -54,6 +73,129 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHa
   // Reminders trigger state
   const [isTriggeringReminders, setIsTriggeringReminders] = useState(false);
   const [reminderMsg, setReminderMsg] = useState<string | null>(null);
+
+  const handleCsvFile = async (file: File) => {
+    setCsvFileName(file.name);
+    setCsvError(null);
+    setCsvImportSuccess(null);
+    setIsPreviewingCsv(true);
+    try {
+      const text = await file.text();
+      setCsvContent(text);
+      const preview = await api.adminPreviewCsv(text);
+      setCsvPreview(preview);
+      triggerHaptic?.('light');
+    } catch (err: any) {
+      setCsvError(err.message || 'Failed to preview CSV file');
+      setCsvPreview(null);
+      triggerHaptic?.('error');
+    } finally {
+      setIsPreviewingCsv(false);
+    }
+  };
+
+  const handleManualPreview = async () => {
+    if (!csvContent.trim()) {
+      setCsvError('Please select a CSV file or paste CSV text');
+      return;
+    }
+    setCsvError(null);
+    setCsvImportSuccess(null);
+    setIsPreviewingCsv(true);
+    try {
+      const preview = await api.adminPreviewCsv(csvContent);
+      setCsvPreview(preview);
+      triggerHaptic?.('light');
+    } catch (err: any) {
+      setCsvError(err.message || 'Failed to parse CSV');
+      setCsvPreview(null);
+      triggerHaptic?.('error');
+    } finally {
+      setIsPreviewingCsv(false);
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!csvContent.trim()) return;
+    setIsImportingCsv(true);
+    setCsvError(null);
+    try {
+      const res = await api.adminImportCsv(csvContent);
+      triggerHaptic?.('success');
+      setCsvImportSuccess(
+        `Imported ${res.total_rows} records (${res.donations_imported} donations, ${res.expenses_imported} expenses, ${res.anonymous_donations} anonymous).`
+      );
+      setCsvPreview(null);
+      setCsvContent('');
+      setCsvFileName('');
+      onDataChanged();
+      loadAdminData();
+    } catch (err: any) {
+      triggerHaptic?.('error');
+      setCsvError(err.message || 'CSV import failed');
+    } finally {
+      setIsImportingCsv(false);
+    }
+  };
+
+  const SAMPLE_CSV_CONTENT =
+    'date,category,amount,contributor\n' +
+    '2024-05-01,beans,24.50,Marco\n' +
+    '2024-05-02,sweets,6.50,\n' +
+    '2024-05-03,donation,35.00,anonym\n' +
+    '2024-05-04,filters,8.00,@sarah\n' +
+    '2024-05-05,cookies,4.20,anonym\n' +
+    '2024-05-06,donation,15.00,\n';
+
+  const downloadSampleTemplate = () => {
+    triggerHaptic?.('light');
+    const templateUrl = `${window.location.origin}/coffee_service_import_template.csv`;
+
+    if (openLink) {
+      openLink(templateUrl);
+    } else {
+      try {
+        const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'coffee_service_import_template.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch {
+        window.open(templateUrl, '_blank');
+      }
+    }
+  };
+
+  const copySampleTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(SAMPLE_CSV_CONTENT);
+      setCopiedTemplate(true);
+      triggerHaptic?.('success');
+      setTimeout(() => setCopiedTemplate(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  const loadSampleIntoBox = async () => {
+    setCsvContent(SAMPLE_CSV_CONTENT);
+    setCsvFileName('sample_template.csv');
+    setShowDirectPaste(true);
+    triggerHaptic?.('light');
+    setIsPreviewingCsv(true);
+    try {
+      const preview = await api.adminPreviewCsv(SAMPLE_CSV_CONTENT);
+      setCsvPreview(preview);
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsPreviewingCsv(false);
+    }
+  };
 
   const loadAdminData = async () => {
     try {
@@ -261,6 +403,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHa
               {unverifiedCount}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => {
+            triggerHaptic?.('light');
+            setAdminSection('import');
+          }}
+          className={`flex-1 py-1.5 rounded-xl flex items-center justify-center gap-1 transition-all ${
+            adminSection === 'import'
+              ? 'bg-coffee-espresso text-white shadow-sm'
+              : 'hover:text-coffee-espresso'
+          }`}
+        >
+          <FileSpreadsheet className="w-3 h-3" />
+          <span>Import CSV</span>
         </button>
 
         <button
@@ -574,7 +731,248 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onDataChanged, triggerHa
         </div>
       )}
 
-      {/* SECTION 3: COMMUNITY SETTINGS */}
+      {/* SECTION 3: CSV IMPORT */}
+      {adminSection === 'import' && (
+        <div className="bg-white rounded-3xl p-5 shadow-warm border border-coffee-border/70 space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <FileSpreadsheet className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-coffee-espresso">Import Donations & Expenses</h3>
+                <p className="text-[11px] text-stone-500">
+                  Bulk CSV format: <code className="text-[10px] bg-stone-100 px-1 py-0.5 rounded text-stone-700">date, category, amount, contributor</code>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={downloadSampleTemplate}
+                className="py-1 px-2.5 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-[11px] font-semibold text-coffee-espresso flex items-center gap-1 shadow-sm transition-all"
+                title="Download sample CSV file"
+              >
+                <Download className="w-3 h-3 text-stone-500" />
+                <span>Download</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={copySampleTemplate}
+                className="py-1 px-2.5 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-[11px] font-semibold text-coffee-espresso flex items-center gap-1 shadow-sm transition-all"
+                title="Copy sample CSV template to clipboard"
+              >
+                {copiedTemplate ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span className="text-emerald-700">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3 text-stone-500" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={loadSampleIntoBox}
+                className="py-1 px-2.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-[11px] font-bold text-amber-900 flex items-center gap-1 shadow-sm transition-all"
+                title="Fill textarea with sample data and preview immediately"
+              >
+                <Sparkles className="w-3 h-3 text-amber-600" />
+                <span>Try Sample</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Success Banner */}
+          {csvImportSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{csvImportSuccess}</span>
+            </div>
+          )}
+
+          {/* Error Banner */}
+          {csvError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{csvError}</span>
+            </div>
+          )}
+
+          {/* Upload Dropzone */}
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleCsvFile(e.dataTransfer.files[0]);
+              }
+            }}
+            className="border-2 border-dashed border-stone-200 hover:border-amber-400 bg-stone-50/60 hover:bg-amber-50/30 rounded-2xl p-6 text-center transition-all cursor-pointer relative"
+          >
+            <input
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleCsvFile(e.target.files[0]);
+                }
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <div className="w-10 h-10 rounded-2xl bg-white shadow-sm border border-stone-200 text-coffee-espresso flex items-center justify-center mx-auto mb-2">
+              <UploadCloud className="w-5 h-5 text-amber-700" />
+            </div>
+            {csvFileName ? (
+              <div>
+                <p className="text-xs font-bold text-coffee-espresso">{csvFileName}</p>
+                <p className="text-[10px] text-stone-400 mt-0.5">Click or drag another file to replace</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs font-bold text-coffee-espresso">Select CSV file or drop it here</p>
+                <p className="text-[10px] text-stone-400 mt-0.5">
+                  Supports sweets, beans, repairs & anonymous donations
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Direct Paste Toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowDirectPaste(!showDirectPaste)}
+              className="text-[11px] font-semibold text-coffee-latte hover:text-coffee-espresso underline"
+            >
+              {showDirectPaste ? 'Hide text paste' : 'Or paste raw CSV text directly'}
+            </button>
+            {showDirectPaste && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  rows={4}
+                  value={csvContent}
+                  onChange={(e) => setCsvContent(e.target.value)}
+                  placeholder="date,category,amount,contributor&#10;2024-05-01,beans,24.50,Marco&#10;2024-05-02,sweets,5.00,&#10;2024-05-03,donation,20.00,anonym"
+                  className="w-full text-xs font-mono p-3 rounded-2xl border border-stone-200 bg-stone-50 text-coffee-espresso focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleManualPreview}
+                  disabled={isPreviewingCsv || !csvContent.trim()}
+                  className="py-1.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold disabled:opacity-50 transition-all"
+                >
+                  {isPreviewingCsv ? 'Analyzing...' : 'Analyze CSV Content'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Loading Indicator */}
+          {isPreviewingCsv && (
+            <div className="py-4 text-center text-xs text-stone-500 font-medium">
+              Parsing and verifying CSV columns...
+            </div>
+          )}
+
+          {/* Preview Section */}
+          {csvPreview && (
+            <div className="mt-4 pt-4 border-t border-stone-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-coffee-espresso">Import Preview</h4>
+                <span className="text-[11px] text-stone-500 font-semibold">
+                  {csvPreview.total_rows} total rows
+                </span>
+              </div>
+
+              {/* Badges */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <div className="text-xs font-bold text-emerald-800">{csvPreview.donations_imported}</div>
+                  <div className="text-[10px] text-emerald-600">Donations ({csvPreview.anonymous_donations} anon)</div>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+                  <div className="text-xs font-bold text-amber-800">{csvPreview.expenses_imported}</div>
+                  <div className="text-[10px] text-amber-600">Expenses</div>
+                </div>
+                <div className="p-2 rounded-xl bg-stone-100 border border-stone-200">
+                  <div className="text-xs font-bold text-stone-800">{csvPreview.total_rows}</div>
+                  <div className="text-[10px] text-stone-500">Ready to Save</div>
+                </div>
+              </div>
+
+              {/* Preview Table */}
+              {csvPreview.preview && csvPreview.preview.length > 0 && (
+                <div className="max-h-48 overflow-y-auto rounded-2xl border border-stone-200 bg-stone-50/50">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-stone-100/90 text-stone-500 sticky top-0 text-[10px] uppercase font-bold tracking-wider">
+                      <tr>
+                        <th className="py-1.5 px-2.5">Date</th>
+                        <th className="py-1.5 px-2">Type</th>
+                        <th className="py-1.5 px-2">Category</th>
+                        <th className="py-1.5 px-2">Amount</th>
+                        <th className="py-1.5 px-2.5">Contributor</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {csvPreview.preview.map((row, i) => (
+                        <tr key={i} className="hover:bg-white transition-colors">
+                          <td className="py-1.5 px-2.5 font-mono text-stone-600">{row.date}</td>
+                          <td className="py-1.5 px-2">
+                            <span
+                              className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                                row.type === 'donation'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {row.type}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-2 font-medium text-stone-700 capitalize">{row.category}</td>
+                          <td className="py-1.5 px-2 font-bold text-coffee-espresso">€{row.amount.toFixed(2)}</td>
+                          <td className="py-1.5 px-2.5 text-stone-600">
+                            {row.resolved_contributor === 'Anonymous' ? (
+                              <span className="italic text-stone-400">🎭 Anonymous</span>
+                            ) : (
+                              row.resolved_contributor
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Confirm Import Action */}
+              <button
+                type="button"
+                onClick={handleExecuteImport}
+                disabled={isImportingCsv || csvPreview.total_rows === 0}
+                className="w-full py-2.5 bg-coffee-espresso hover:bg-coffee-roast active:scale-[0.99] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+              >
+                {isImportingCsv ? (
+                  <span>Importing Records into Database...</span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Confirm & Import {csvPreview.total_rows} Records</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SECTION 4: COMMUNITY SETTINGS */}
       {adminSection === 'settings' && (
         <div className="bg-white rounded-3xl p-5 shadow-warm border border-coffee-border/70">
           <div className="flex items-center space-x-2 mb-3">

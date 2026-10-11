@@ -47,6 +47,7 @@ class PledgeUpdate(BaseModel):
 
 class CashDonationCreate(BaseModel):
     amount: float = Field(..., gt=0.0, description="Amount in EUR")
+    is_anonymous: bool = Field(False, description="Donate anonymously")
 
 
 class DonationOut(BaseModel):
@@ -62,7 +63,7 @@ class DonationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-CategoryType = Literal["beans", "filters", "cleaning", "maintenance_repair", "depreciation_reserve"]
+CategoryType = Literal["beans", "sweets", "filters", "cleaning", "maintenance_repair", "depreciation_reserve"]
 
 
 class ExpenseCreate(BaseModel):
@@ -136,3 +137,25 @@ class SettingItem(BaseModel):
 
 class SettingUpdate(BaseModel):
     value: str
+
+
+class CSVImportRequest(BaseModel):
+    csv_content: str
+
+
+class CSVImportItem(BaseModel):
+    date: str
+    category: str
+    amount: float
+    contributor: Optional[str] = None
+    type: Literal["expense", "donation"]
+    resolved_contributor: str
+
+
+class CSVImportSummary(BaseModel):
+    total_rows: int
+    expenses_imported: int
+    donations_imported: int
+    anonymous_donations: int
+    errors: List[str] = []
+    preview: Optional[List[CSVImportItem]] = None

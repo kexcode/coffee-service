@@ -1,4 +1,4 @@
-import { DashboardData, FeedItem, User, Donation, ExpensePayload, AdminUser } from '../types';
+import { DashboardData, FeedItem, User, Donation, ExpensePayload, AdminUser, CSVImportSummary } from '../types';
 
 let currentInitData = '';
 let devUserOverride: { id: number; first_name: string; username?: string; role?: string } | null = null;
@@ -79,13 +79,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ pledge_amount, pledge_active }),
     }),
-  submitCashDonation: (amount: number) =>
+  submitCashDonation: (amount: number, is_anonymous: boolean = false) =>
     request<Donation>('/api/donations/cash', {
       method: 'POST',
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify({ amount, is_anonymous }),
     }),
 
   // Admin APIs
+  adminPreviewCsv: (csv_content: string) =>
+    request<CSVImportSummary>('/api/admin/import/preview', {
+      method: 'POST',
+      body: JSON.stringify({ csv_content }),
+    }),
+  adminImportCsv: (csv_content: string) =>
+    request<CSVImportSummary>('/api/admin/import/csv', {
+      method: 'POST',
+      body: JSON.stringify({ csv_content }),
+    }),
   adminCreateExpense: (data: ExpensePayload) =>
     request<any>('/api/admin/expenses', {
       method: 'POST',

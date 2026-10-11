@@ -12,7 +12,8 @@ from app.schemas import DashboardOut, FeedItem, UserOut
 
 router = APIRouter(prefix="/api", tags=["Dashboard & Feed"])
 
-ALL_CATEGORIES = ["beans", "filters", "cleaning", "maintenance_repair", "depreciation_reserve"]
+ALL_CATEGORIES = ["beans", "sweets", "filters", "cleaning", "maintenance_repair", "depreciation_reserve"]
+
 
 
 @router.get("/user/me", response_model=UserOut)
@@ -161,8 +162,8 @@ async def get_feed(
                 payment_method=donation.payment_method,
                 status=donation.status,
                 user_id=donation.user_id,
-                actor_name=user.first_name,
-                actor_username=user.username,
+                actor_name="Anonymous" if user.tg_id == 0 else user.first_name,
+                actor_username=None if user.tg_id == 0 else user.username,
                 created_at=donation.created_at,
             )
         )

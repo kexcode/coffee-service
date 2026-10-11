@@ -55,8 +55,27 @@ export interface Donation {
 }
 
 export interface ExpensePayload {
-  category: 'beans' | 'filters' | 'cleaning' | 'maintenance_repair' | 'depreciation_reserve';
+  category: 'beans' | 'sweets' | 'filters' | 'cleaning' | 'maintenance_repair' | 'depreciation_reserve';
   amount: number;
   description: string;
   receipt_url?: string;
 }
+
+export interface CSVImportItem {
+  date: string;
+  category: string;
+  amount: number;
+  contributor?: string | null;
+  type: 'expense' | 'donation';
+  resolved_contributor: string;
+}
+
+export interface CSVImportSummary {
+  total_rows: number;
+  expenses_imported: number;
+  donations_imported: number;
+  anonymous_donations: number;
+  errors: string[];
+  preview?: CSVImportItem[] | null;
+}
+

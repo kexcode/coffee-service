@@ -1,5 +1,9 @@
-from typing import List, Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+import re
+from datetime import datetime, timezone
+from typing import List, Dict, Optional, Tuple
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, case
 
@@ -17,6 +21,9 @@ from app.schemas import (
     AdminUserOut,
     UserRoleUpdate,
     UserVerifyUpdate,
+    CSVImportRequest,
+    CSVImportItem,
+    CSVImportSummary,
 )
 from app.bot.scheduler import send_monthly_pledge_reminders
 from app.config import get_settings, Settings
@@ -379,3 +386,345 @@ async def update_user_verification(
         await notify_user_verified(target_user.tg_id)
 
     return target_user
+
+
+def _parse_csv_rows(csv_text: str):
+    csv_text = csv_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not csv_text:
+        return []
+
+    lines = [line.strip() for line in csv_text.split("\n") if line.strip()]
+    if not lines:
+        return []
+
+    sample = lines[0]
+    delimiter = ","
+    if ";" in sample and sample.count(";") >= sample.count(","):
+        delimiter = ";"
+    elif "\t" in sample and sample.count("\t") >= sample.count(","):
+        delimiter = "\t"
+
+    reader = csv.reader(io.StringIO(csv_text), delimiter=delimiter)
+    raw_rows = [row for row in reader if any(cell.strip() for cell in row)]
+    if not raw_rows:
+        return []
+
+    first_row = [cell.strip().lower() for cell in raw_rows[0]]
+    has_header = any(k in first_row for k in ["date", "category", "amount", "contributor", "donor", "user", "type"])
+
+    col_indices = {"date": 0, "category": 1, "amount": 2, "contributor": 3}
+
+    if has_header:
+        for idx, col in enumerate(first_row):
+            if any(w in col for w in ["date", "time", "day"]):
+                col_indices["date"] = idx
+            elif any(w in col for w in ["category", "cat", "item", "type"]):
+                col_indices["category"] = idx
+            elif any(w in col for w in ["amount", "price", "sum", "cost", "eur", "usd", "val"]):
+                col_indices["amount"] = idx
+            elif any(w in col for w in ["contributor", "donor", "user", "name", "who", "person"]):
+                col_indices["contributor"] = idx
+        data_rows = raw_rows[1:]
+    else:
+        data_rows = raw_rows
+
+    parsed = []
+    for row in data_rows:
+        def get_val(idx):
+            return row[idx].strip() if idx < len(row) else ""
+
+        date_val = get_val(col_indices["date"])
+        cat_val = get_val(col_indices["category"])
+        amt_val = get_val(col_indices["amount"])
+        contrib_val = get_val(col_indices["contributor"])
+
+        if not (date_val or cat_val or amt_val):
+            continue
+        parsed.append({
+            "raw_date": date_val,
+            "raw_category": cat_val,
+            "raw_amount": amt_val,
+            "raw_contributor": contrib_val,
+        })
+    return parsed
+
+
+def _parse_amount(raw_amt: str) -> float:
+    cleaned = re.sub(r"[^\d.,\-]", "", raw_amt)
+    if "," in cleaned and "." not in cleaned:
+        cleaned = cleaned.replace(",", ".")
+    elif "," in cleaned and "." in cleaned:
+        cleaned = cleaned.replace(",", "")
+    val = float(cleaned)
+    return round(abs(val), 2)
+
+
+def _parse_date(date_str: str) -> datetime:
+    date_str = date_str.strip()
+    formats = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%Y %H:%M",
+        "%d.%m.%Y",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y/%m/%d",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    try:
+        dt = datetime.fromisoformat(date_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    return datetime.now(timezone.utc)
+
+
+DONATION_KEYWORDS = {
+    "donation", "donations", "income", "contribution", "contributions",
+    "cash", "paypal", "card", "in", "deposit", "jar", "pledge"
+}
+
+
+def _classify_category(cat: str) -> Tuple[str, str]:
+    c_lower = cat.strip().lower()
+    if any(kw in c_lower for kw in ["donat", "income", "contribut", "deposit"]) or c_lower in DONATION_KEYWORDS:
+        method = "paypal" if "paypal" in c_lower else ("card" if "card" in c_lower else "cash")
+        return "donation", method
+
+    if c_lower in {"beans", "sweets", "filters", "cleaning", "maintenance_repair", "depreciation_reserve"}:
+        return "expense", c_lower
+
+    if any(k in c_lower for k in ["sweet", "snack", "cookie", "candy", "chocolate", "dessert", "treat", "sugar", "biscuit", "cake"]):
+        return "expense", "sweets"
+    if any(k in c_lower for k in ["bean", "coffee", "roast", "grain"]):
+        return "expense", "beans"
+    if any(k in c_lower for k in ["filter", "paper"]):
+        return "expense", "filters"
+    if any(k in c_lower for k in ["clean", "tablet", "descal", "soap", "detergent"]):
+        return "expense", "cleaning"
+    if any(k in c_lower for k in ["repair", "maint", "fix", "part", "service"]):
+        return "expense", "maintenance_repair"
+    if any(k in c_lower for k in ["deprec", "reserve", "fund"]):
+        return "expense", "depreciation_reserve"
+
+    return "expense", "beans"
+
+
+ANON_KEYWORDS = {"", "anonym", "anonymous", "anon", "-", "none", "n/a", "null"}
+
+
+async def _resolve_or_create_user(db: AsyncSession, contributor: Optional[str], anon_user_id: int) -> Tuple[int, str, bool]:
+    if not contributor or contributor.strip().lower() in ANON_KEYWORDS:
+        return anon_user_id, "Anonymous", True
+
+    clean = contributor.strip()
+    uname = clean.lstrip("@").lower()
+
+    if clean.isdigit():
+        res = await db.execute(select(User).where(User.tg_id == int(clean)))
+        u = res.scalar_one_or_none()
+        if u:
+            return u.id, u.first_name, False
+
+    res = await db.execute(select(User).where(func.lower(User.username) == uname))
+    u = res.scalar_one_or_none()
+    if u:
+        return u.id, u.first_name, False
+
+    res = await db.execute(select(User).where(func.lower(User.first_name) == clean.lower()))
+    u = res.scalar_one_or_none()
+    if u:
+        return u.id, u.first_name, False
+
+    min_res = await db.execute(select(func.min(User.tg_id)).where(User.tg_id < 0))
+    min_tg_id = min_res.scalar()
+    next_tg_id = -1 if (min_tg_id is None or min_tg_id >= 0) else (min_tg_id - 1)
+
+    first_name = clean.lstrip("@")
+    username_val = uname if clean.startswith("@") else None
+    new_user = User(
+        tg_id=next_tg_id,
+        username=username_val,
+        first_name=first_name,
+        role="user",
+        is_verified=True,
+        pledge_amount=0.0,
+        pledge_active=False,
+    )
+    db.add(new_user)
+    await db.flush()
+    return new_user.id, new_user.first_name, False
+
+
+@router.get("/import/sample-template")
+async def download_sample_csv_template():
+    sample = (
+        "date,category,amount,contributor\n"
+        "2024-05-01,beans,24.50,Marco\n"
+        "2024-05-02,sweets,6.50,\n"
+        "2024-05-03,donation,35.00,anonym\n"
+        "2024-05-04,filters,8.00,@sarah\n"
+        "2024-05-05,cookies,4.20,anonym\n"
+        "2024-05-06,donation,15.00,\n"
+    )
+    return Response(
+        content=sample,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=coffee_service_import_template.csv",
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@router.post("/import/preview", response_model=CSVImportSummary)
+async def preview_csv_import(
+    payload: CSVImportRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = _parse_csv_rows(payload.csv_content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No valid data rows found in CSV")
+
+    res = await db.execute(select(User).where(User.tg_id == 0))
+    anon_user = res.scalar_one_or_none()
+    anon_id = anon_user.id if anon_user else 0
+
+    items_preview: List[CSVImportItem] = []
+    donations_count = 0
+    expenses_count = 0
+    anon_count = 0
+    errors: List[str] = []
+
+    for idx, row in enumerate(rows, start=1):
+        try:
+            amt = _parse_amount(row["raw_amount"])
+            dt = _parse_date(row["raw_date"])
+            item_type, classified = _classify_category(row["raw_category"])
+
+            contrib_raw = row["raw_contributor"]
+            is_anon = not contrib_raw or contrib_raw.strip().lower() in ANON_KEYWORDS
+            resolved_name = "Anonymous" if is_anon else contrib_raw.strip().lstrip("@")
+
+            if item_type == "donation":
+                donations_count += 1
+                if is_anon:
+                    anon_count += 1
+            else:
+                expenses_count += 1
+
+            items_preview.append(
+                CSVImportItem(
+                    date=dt.strftime("%Y-%m-%d"),
+                    category=classified,
+                    amount=amt,
+                    contributor=contrib_raw if contrib_raw else None,
+                    type=item_type,
+                    resolved_contributor=resolved_name,
+                )
+            )
+        except Exception as e:
+            errors.append(f"Row {idx}: {str(e)}")
+
+    return CSVImportSummary(
+        total_rows=len(rows),
+        expenses_imported=expenses_count,
+        donations_imported=donations_count,
+        anonymous_donations=anon_count,
+        errors=errors,
+        preview=items_preview[:15],
+    )
+
+
+@router.post("/import/csv", response_model=CSVImportSummary)
+async def import_csv_data(
+    payload: CSVImportRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = _parse_csv_rows(payload.csv_content)
+    if not rows:
+        raise HTTPException(status_code=400, detail="No valid data rows found in CSV")
+
+    res = await db.execute(select(User).where(User.tg_id == 0))
+    anon_user = res.scalar_one_or_none()
+    if not anon_user:
+        anon_user = User(
+            tg_id=0,
+            username="anonymous",
+            first_name="Anonymous",
+            role="user",
+            is_verified=True,
+            pledge_amount=0.0,
+            pledge_active=False,
+        )
+        db.add(anon_user)
+        await db.flush()
+
+    donations_count = 0
+    expenses_count = 0
+    anon_count = 0
+    errors: List[str] = []
+
+    for idx, row in enumerate(rows, start=1):
+        try:
+            amt = _parse_amount(row["raw_amount"])
+            dt = _parse_date(row["raw_date"])
+            item_type, classified = _classify_category(row["raw_category"])
+
+            contrib_id, contrib_name, is_anon = await _resolve_or_create_user(
+                db, row["raw_contributor"], anon_user.id
+            )
+
+            if item_type == "donation":
+                donation = Donation(
+                    user_id=contrib_id,
+                    amount=amt,
+                    payment_method=classified,
+                    status="confirmed",
+                    created_at=dt,
+                )
+                db.add(donation)
+                donations_count += 1
+                if is_anon:
+                    anon_count += 1
+            else:
+                desc = f"Imported: {row['raw_category'].strip()}" if row['raw_category'].strip() else "Imported expense"
+                if not is_anon:
+                    desc += f" ({contrib_name})"
+                expense = Expense(
+                    category=classified,
+                    amount=amt,
+                    description=desc,
+                    receipt_url=None,
+                    created_by=admin.tg_id,
+                    created_at=dt,
+                )
+                db.add(expense)
+                expenses_count += 1
+        except Exception as e:
+            errors.append(f"Row {idx}: {str(e)}")
+
+    await db.commit()
+
+    return CSVImportSummary(
+        total_rows=len(rows),
+        expenses_imported=expenses_count,
+        donations_imported=donations_count,
+        anonymous_donations=anon_count,
+        errors=errors,
+        preview=None,
+    )
+

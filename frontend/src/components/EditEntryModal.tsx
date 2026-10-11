@@ -13,6 +13,7 @@ interface EditEntryModalProps {
 
 const EXPENSE_CATEGORIES: { key: ExpensePayload['category']; label: string }[] = [
   { key: 'beans', label: '☕ Coffee Beans' },
+  { key: 'sweets', label: '🍪 Sweets & Snacks' },
   { key: 'filters', label: '📄 Paper & Filters' },
   { key: 'cleaning', label: '🧼 Cleaning & Descaling' },
   { key: 'maintenance_repair', label: '🔧 Maintenance & Parts' },
@@ -243,7 +244,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
                 >
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.first_name} {u.username ? `(@${u.username})` : ''}
+                      {u.tg_id === 0 ? '🎭 Anonymous / Cash Jar' : `${u.first_name} ${u.username ? `(@${u.username})` : ''}`}
                     </option>
                   ))}
                   {selectedUserId && !users.some((u) => u.id === selectedUserId) && (

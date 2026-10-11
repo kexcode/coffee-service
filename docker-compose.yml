@@ -34,17 +34,50 @@ services:
       backend:
         condition: service_started
 
-  # Optional Cloudflare Quick Tunnel for instant public HTTPS URL
-  # To run with public HTTPS: docker compose --profile tunnel up
+  # Option 1: Cloudflare Tunnel (recommended for Oracle Cloud, no open ports required)
+  # Run with: docker compose --profile tunnel up -d
+  # If TUNNEL_TOKEN is set in .env, connects your permanent Cloudflare tunnel.
+  # If TUNNEL_TOKEN is empty, starts a quick tunnel on trycloudflare.com.
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: coffee_tunnel
     restart: unless-stopped
-    command: tunnel --url http://frontend:80
+    env_file:
+      - .env
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "if [ -n \"$$TUNNEL_TOKEN\" ]; then
+         echo 'Starting Cloudflare Named Tunnel with token...';
+         exec cloudflared tunnel --no-autoupdate run --token \"$$TUNNEL_TOKEN\";
+       else
+         echo 'Starting Cloudflare Quick Tunnel...';
+         exec cloudflared tunnel --url http://frontend:80;
+       fi"
     profiles:
       - tunnel
     depends_on:
       - frontend
 
+  # Option 2: Caddy (automatic Let's Encrypt SSL if you point a custom domain directly to server IP)
+  # Run with: docker compose --profile caddy up -d
+  caddy:
+    image: caddy:2-alpine
+    container_name: coffee_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    profiles:
+      - caddy
+    depends_on:
+      - frontend
+
 volumes:
-  coffee_data:
+  caddy_data:
+  caddy_config:

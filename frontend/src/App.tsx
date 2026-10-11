@@ -233,7 +233,7 @@ export function App() {
         {/* Tab 4: Admin Controls */}
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-4">
-            <AdminPanel onDataChanged={loadData} triggerHaptic={triggerHaptic} />
+            <AdminPanel onDataChanged={loadData} triggerHaptic={triggerHaptic} openLink={openLink} />
           </div>
         )}
       </main>

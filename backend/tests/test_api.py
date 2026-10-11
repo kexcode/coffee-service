@@ -166,3 +166,88 @@ async def test_dashboard_and_pledge_flow():
             json={"role": "user"},
         )
         assert demote_self_resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_sweets_anonymous_and_csv_import():
+    admin_headers = {
+        "X-Dev-Tg-Id": "9999",
+        "X-Dev-First-Name": "AdminBoss",
+        "X-Dev-Role": "admin",
+    }
+    user_headers = {
+        "X-Dev-Tg-Id": "2001",
+        "X-Dev-First-Name": "Sarah",
+        "X-Dev-Username": "sarah_coffee",
+    }
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # 1. Log expense in sweets category
+        exp_resp = await client.post(
+            "/api/admin/expenses",
+            headers=admin_headers,
+            json={
+                "category": "sweets",
+                "amount": 7.50,
+                "description": "Artisan Cantucci and Chocolate",
+            },
+        )
+        assert exp_resp.status_code == 201
+        assert exp_resp.json()["category"] == "sweets"
+
+        # 2. Log anonymous cash donation
+        anon_cash_resp = await client.post(
+            "/api/donations/cash",
+            headers=user_headers,
+            json={"amount": 25.0, "is_anonymous": True},
+        )
+        assert anon_cash_resp.status_code == 201
+        anon_data = anon_cash_resp.json()
+        assert anon_data["amount"] == 25.0
+        assert anon_data["user_first_name"] == "Anonymous"
+        assert anon_data["user_username"] is None
+
+        # 3. CSV Import Preview
+        csv_sample = (
+            "date,category,amount,contributor\n"
+            "2024-05-01,beans,20.00,Sarah\n"
+            "2024-05-02,sweets,5.50,\n"
+            "2024-05-03,donation,30.00,anonym\n"
+            "2024-05-04,cookies,4.00,anonym\n"
+            "2024-05-05,donation,15.00,@new_donor\n"
+        )
+        preview_resp = await client.post(
+            "/api/admin/import/preview",
+            headers=admin_headers,
+            json={"csv_content": csv_sample},
+        )
+        assert preview_resp.status_code == 200
+        preview = preview_resp.json()
+        assert preview["total_rows"] == 5
+        assert preview["donations_imported"] == 2
+        assert preview["expenses_imported"] == 3
+        assert preview["anonymous_donations"] == 1
+        assert len(preview["preview"]) == 5
+
+        # 4. Actual CSV Import
+        import_resp = await client.post(
+            "/api/admin/import/csv",
+            headers=admin_headers,
+            json={"csv_content": csv_sample},
+        )
+        assert import_resp.status_code == 200
+        summary = import_resp.json()
+        assert summary["total_rows"] == 5
+        assert summary["donations_imported"] == 2
+        assert summary["expenses_imported"] == 3
+        assert summary["anonymous_donations"] == 1
+        assert len(summary["errors"]) == 0
+
+        # Verify Dashboard includes sweets in category breakdown
+        dash_resp = await client.get("/api/dashboard", headers=admin_headers)
+        assert dash_resp.status_code == 200
+        dash = dash_resp.json()
+        assert "sweets" in dash["category_breakdown"]
+        # Initial 7.50 + imported 5.50 + imported cookies 4.00 = 17.00
+        assert dash["category_breakdown"]["sweets"] == 17.00
+
