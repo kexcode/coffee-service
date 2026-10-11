@@ -46,8 +46,7 @@ async def send_monthly_pledge_reminders():
 
     for user in active_users:
         amount = user.pledge_amount
-        # Prepare PayPal URL formatted with amount if supported by paypal.me (e.g. paypal.me/user/10EUR)
-        user_paypal_url = f"{paypal_url.rstrip('/')}/{int(amount) if amount.is_integer() else amount}EUR" if "paypal.me" in paypal_url else paypal_url
+        user_paypal_url = paypal_url
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[

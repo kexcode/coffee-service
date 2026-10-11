@@ -45,16 +45,8 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
   };
 
   const handlePayPal = () => {
-    const amount = getEffectiveAmount();
-    if (amount <= 0) {
-      setError('Please select or enter a valid amount.');
-      return;
-    }
     triggerHaptic?.('medium');
-    let targetUrl = paypalUrl;
-    if (paypalUrl.includes('paypal.me')) {
-      targetUrl = `${paypalUrl.replace(/\/$/, '')}/${amount}EUR`;
-    }
+    const targetUrl = paypalUrl?.trim() || 'https://paypal.me';
     openLink(targetUrl);
   };
 
@@ -214,7 +206,11 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
                 onClick={handlePayPal}
                 className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
               >
-                <span>Pay €{getEffectiveAmount().toFixed(2)} via PayPal</span>
+                <span>
+                  {getEffectiveAmount() > 0
+                    ? `Pay €${getEffectiveAmount().toFixed(2)} via PayPal`
+                    : 'Pay via PayPal'}
+                </span>
                 <ExternalLink className="w-3.5 h-3.5 opacity-80" />
               </button>
 
