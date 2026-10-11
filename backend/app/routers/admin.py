@@ -428,15 +428,25 @@ def _parse_csv_rows(csv_text: str):
     else:
         data_rows = raw_rows
 
+    # Security: Limit maximum rows processed per batch to prevent DoS
+    data_rows = data_rows[:2000]
+
+    def _sanitize_csv_field(val: str) -> str:
+        # Prevent spreadsheet formula injection (=, +, -, @)
+        cleaned = val.strip()
+        while cleaned and cleaned[0] in ("=", "+", "-", "@", "\t", "\r"):
+            cleaned = cleaned[1:].strip()
+        return cleaned
+
     parsed = []
     for row in data_rows:
         def get_val(idx):
             return row[idx].strip() if idx < len(row) else ""
 
         date_val = get_val(col_indices["date"])
-        cat_val = get_val(col_indices["category"])
+        cat_val = _sanitize_csv_field(get_val(col_indices["category"]))
         amt_val = get_val(col_indices["amount"])
-        contrib_val = get_val(col_indices["contributor"])
+        contrib_val = _sanitize_csv_field(get_val(col_indices["contributor"]))
 
         if not (date_val or cat_val or amt_val):
             continue

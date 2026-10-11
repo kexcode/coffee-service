@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+import time
+from collections import defaultdict
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -9,6 +11,19 @@ from app.bot.instance import notify_admins_cash_donation
 
 router = APIRouter(prefix="/api", tags=["Donations & Pledges"])
 
+# In-memory sliding window rate limits per user
+_cash_donation_history = defaultdict(list)
+_pledge_history = defaultdict(list)
+
+
+def _check_rate_limit(history_dict: dict, key: int, max_requests: int = 5, window_seconds: int = 60) -> bool:
+    now = time.time()
+    history_dict[key] = [t for t in history_dict[key] if now - t < window_seconds]
+    if len(history_dict[key]) >= max_requests:
+        return False
+    history_dict[key].append(now)
+    return True
+
 
 @router.post("/donations/cash", response_model=DonationOut, status_code=status.HTTP_201_CREATED)
 async def create_cash_donation(
@@ -16,6 +31,13 @@ async def create_cash_donation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Rate limit: max 5 cash donations per minute per user
+    if not _check_rate_limit(_cash_donation_history, current_user.id, max_requests=5, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many donation requests. Please wait a moment before submitting again."
+        )
+
     target_user_id = current_user.id
     target_user_name = current_user.first_name
     target_username = current_user.username
@@ -76,6 +98,13 @@ async def update_pledge(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Rate limit: max 10 pledge updates per minute per user
+    if not _check_rate_limit(_pledge_history, current_user.id, max_requests=10, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many pledge update requests. Please wait a moment before trying again."
+        )
+
     current_user.pledge_amount = round(payload.pledge_amount, 2)
     current_user.pledge_active = payload.pledge_active
 

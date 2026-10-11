@@ -50,6 +50,29 @@ def verify_telegram_init_data(init_data_raw: str, bot_token: str) -> dict:
             detail="Invalid Telegram initData signature"
         )
 
+    # Validate auth_date to prevent replay attacks (24-hour window)
+    if "auth_date" in parsed_items:
+        try:
+            auth_timestamp = int(parsed_items["auth_date"])
+            now = int(time.time())
+            # Clock skew tolerance of 5 minutes
+            if auth_timestamp > now + 300:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Telegram initData auth_date is in the future"
+                )
+            # Max age: 86400 seconds (24 hours)
+            if now - auth_timestamp > 86400:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Telegram initData has expired"
+                )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Malformed auth_date in Telegram initData"
+            )
+
     return parsed_items
 
 
@@ -71,7 +94,7 @@ async def get_current_user(
     username: Optional[str] = None
     role_override: Optional[str] = None
 
-    # Development fallback
+    # Development fallback strictly available ONLY in development environment
     if settings.ENVIRONMENT == "development" and (not x_telegram_init_data or x_telegram_init_data == "mock"):
         dev_id = int(x_dev_tg_id) if x_dev_tg_id and x_dev_tg_id.isdigit() else 999999
         tg_id = dev_id

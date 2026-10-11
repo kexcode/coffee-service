@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Literal
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class UserOut(BaseModel):
@@ -72,12 +72,36 @@ class ExpenseCreate(BaseModel):
     description: str = Field(..., min_length=1, max_length=500)
     receipt_url: Optional[str] = Field(None, max_length=1000)
 
+    @field_validator("receipt_url")
+    @classmethod
+    def validate_receipt_url(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("Receipt URL must start with http:// or https://")
+        return v
+
 
 class ExpenseUpdate(BaseModel):
     category: Optional[CategoryType] = None
     amount: Optional[float] = Field(None, gt=0.0)
     description: Optional[str] = Field(None, min_length=1, max_length=500)
     receipt_url: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("receipt_url")
+    @classmethod
+    def validate_receipt_url(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("Receipt URL must start with http:// or https://")
+        return v
 
 
 class DonationUpdate(BaseModel):
@@ -140,7 +164,7 @@ class SettingUpdate(BaseModel):
 
 
 class CSVImportRequest(BaseModel):
-    csv_content: str
+    csv_content: str = Field(..., max_length=2_000_000)
 
 
 class CSVImportItem(BaseModel):

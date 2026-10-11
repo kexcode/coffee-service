@@ -126,6 +126,27 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete.")
 
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Protect against clickjacking while allowing Telegram Web Mini Apps
+        response.headers["Content-Security-Policy"] = (
+            "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;"
+        )
+        # Enable XSS protection filter
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Restrict referrer leakage
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
 app = FastAPI(
     title="Office Coffee Fund Tracker API",
     version="1.0.0",
@@ -133,12 +154,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Middleware
+# Security Headers Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS Middleware (credentials not needed since auth uses custom headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
