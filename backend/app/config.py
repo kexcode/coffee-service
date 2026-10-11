@@ -7,9 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     BOT_TOKEN: str = ""
     ADMIN_TG_IDS: str = ""
-    ADMIN_USERNAMES: str = "leorapatskiy"
+    ADMIN_USERNAMES: str = ""
     WEBAPP_URL: str = "http://localhost:3000"
-    PAYPAL_ME_URL: str = "https://paypal.me/Rapatskiy"
+    PAYPAL_ME_URL: str = "https://paypal.me"
     MONTHLY_TARGET: float = 150.0
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/coffee.db"

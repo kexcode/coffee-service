@@ -54,7 +54,7 @@ Ensure your credentials are set:
 ```ini
 BOT_TOKEN=1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
 ADMIN_USERNAMES=your_telegram_username
-PAYPAL_ME_URL=https://paypal.me/your_paypal_username
+PAYPAL_ME_URL=
 MONTHLY_TARGET=150.00
 ENVIRONMENT=production
 ```

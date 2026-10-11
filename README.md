@@ -62,7 +62,7 @@ Fill in your details:
 BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ  # From @BotFather
 ADMIN_TG_IDS=123456789                           # Your Telegram numeric user ID
 WEBAPP_URL=http://localhost:3000                 # Or your HTTPS tunnel URL
-PAYPAL_ME_URL=https://paypal.me/yourcoffee       # Your team's PayPal.me link
+PAYPAL_ME_URL=                               # (Optional) PayPal.me link
 MONTHLY_TARGET=150.00                            # Monthly goal in EUR
 ENVIRONMENT=development
 ```
