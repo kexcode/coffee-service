@@ -45,6 +45,9 @@ frontend/build/
 .env
 .env.local
 .env.*.local
+SERVER_INFRASTRUCTURE.md
+server_infrastructure.md
+server_registry.json
 
 # IDE
 .idea/

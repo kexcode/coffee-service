@@ -8,7 +8,9 @@ services:
     container_name: coffee_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8001:8000"
+    networks:
+      - coffee_network
     env_file:
       - .env
     environment:
@@ -29,7 +31,9 @@ services:
     container_name: coffee_frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
+    networks:
+      - coffee_network
     depends_on:
       backend:
         condition: service_started
@@ -42,6 +46,8 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: coffee_tunnel
     restart: unless-stopped
+    networks:
+      - coffee_network
     env_file:
       - .env
     entrypoint: ["/bin/sh", "-c"]
@@ -64,6 +70,8 @@ services:
     image: caddy:2-alpine
     container_name: coffee_caddy
     restart: unless-stopped
+    networks:
+      - coffee_network
     ports:
       - "80:80"
       - "443:443"
@@ -77,6 +85,11 @@ services:
       - caddy
     depends_on:
       - frontend
+
+networks:
+  coffee_network:
+    name: coffee_network
+    driver: bridge
 
 volumes:
   caddy_data:

@@ -66,7 +66,7 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
   fi
 fi
 
-# 7. Create systemd unit for automatic reboot recovery
+# 7. Create systemd unit for automatic reboot recovery of Docker stack
 echo "⚙️ Creating systemd service coffee-service.service..."
 cat << 'EOF' > /etc/systemd/system/coffee-service.service
 [Unit]
@@ -78,7 +78,7 @@ After=docker.service network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/coffee-service
-ExecStart=/usr/bin/docker compose --profile tunnel up -d
+ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
 
 [Install]
@@ -90,13 +90,33 @@ sed -i "s|WorkingDirectory=/opt/coffee-service|WorkingDirectory=$PROJECT_ROOT|g"
 systemctl daemon-reload
 systemctl enable coffee-service.service
 
+# 8. Create systemd unit for Cloudflare Quick Tunnel (if cloudflared is installed on host)
+if command -v cloudflared &> /dev/null; then
+  echo "🌐 Creating systemd service coffee-tunnel.service for HTTPS tunnel..."
+  cat << 'EOF' > /etc/systemd/system/coffee-tunnel.service
+[Unit]
+Description=Cloudflare Tunnel for Coffee Service
+After=network.target coffee-service.service
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/cloudflared tunnel --url http://127.0.0.1:3000 --logfile /home/ubuntu/cloudflared-coffee.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable coffee-tunnel.service
+  echo "✅ Cloudflare tunnel service created and enabled."
+fi
+
 echo "========================================================"
 echo "🎉 Setup complete!"
 echo "Next steps:"
-echo "1. Edit .env with your BOT_TOKEN: nano .env"
-echo "2. Start with Cloudflare Tunnel:"
-echo "   docker compose --profile tunnel up -d"
-echo "   (or if using Caddy + domain: docker compose --profile caddy up -d)"
-echo "3. Check logs:"
-echo "   docker compose logs -f"
+echo "1. Verify .env settings: nano .env"
+echo "2. Start stack: systemctl start coffee-service.service"
+echo "3. If using quick tunnel: systemctl start coffee-tunnel.service"
 echo "========================================================"
