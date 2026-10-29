@@ -42,10 +42,9 @@ export const TransparencyFeed: React.FC<TransparencyFeedProps> = ({
     try {
       const d = new Date(isoStr);
       return d.toLocaleDateString(undefined, {
+        year: 'numeric',
         month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
       });
     } catch {
       return isoStr;

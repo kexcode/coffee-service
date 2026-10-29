@@ -110,7 +110,7 @@ export const api = {
     request<void>(`/api/admin/expenses/${expenseId}`, {
       method: 'DELETE',
     }),
-  adminUpdateDonation: (donationId: number, data: { amount?: number; payment_method?: string; status?: string; user_id?: number }) =>
+  adminUpdateDonation: (donationId: number, data: { amount?: number; payment_method?: string; status?: string; user_id?: number; created_at?: string }) =>
     request<Donation>(`/api/admin/donations/${donationId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

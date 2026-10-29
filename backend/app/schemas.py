@@ -90,6 +90,7 @@ class ExpenseUpdate(BaseModel):
     amount: Optional[float] = Field(None, gt=0.0)
     description: Optional[str] = Field(None, min_length=1, max_length=500)
     receipt_url: Optional[str] = Field(None, max_length=1000)
+    created_at: Optional[datetime] = None
 
     @field_validator("receipt_url")
     @classmethod
@@ -109,6 +110,7 @@ class DonationUpdate(BaseModel):
     payment_method: Optional[Literal["cash", "paypal", "card"]] = None
     status: Optional[Literal["confirmed", "pending", "rejected"]] = None
     user_id: Optional[int] = None
+    created_at: Optional[datetime] = None
 
 
 class ExpenseOut(BaseModel):

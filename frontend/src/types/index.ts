@@ -59,6 +59,7 @@ export interface ExpensePayload {
   amount: number;
   description: string;
   receipt_url?: string;
+  created_at?: string;
 }
 
 export interface CSVImportItem {

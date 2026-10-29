@@ -1,7 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Trash2, Edit3, AlertCircle } from 'lucide-react';
+import { X, Check, Trash2, Edit3, AlertCircle, Calendar } from 'lucide-react';
 import { FeedItem, ExpensePayload, AdminUser } from '../types';
 import { api } from '../services/api';
+
+function toDateInputValue(isoStr?: string): string {
+  if (!isoStr) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const match = isoStr.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) {
+    return match[1];
+  }
+  try {
+    const d = new Date(isoStr);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+  } catch {
+    // ignore
+  }
+  return new Date().toISOString().slice(0, 10);
+}
 
 interface EditEntryModalProps {
   entry: FeedItem | null;
@@ -36,6 +55,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
     (entry.category as ExpensePayload['category']) || 'beans'
   );
   const [amount, setAmount] = useState<string>(entry.amount.toFixed(2));
+  const [entryDate, setEntryDate] = useState<string>(() => toDateInputValue(entry.created_at));
   const [description, setDescription] = useState<string>(entry.description);
   const [receiptUrl, setReceiptUrl] = useState<string>(entry.receipt_url || '');
 
@@ -61,6 +81,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
   useEffect(() => {
     if (entry) {
       setAmount(entry.amount.toFixed(2));
+      setEntryDate(toDateInputValue(entry.created_at));
       setDescription(entry.description);
       setReceiptUrl(entry.receipt_url || '');
       if (entry.type === 'expense') {
@@ -83,6 +104,8 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
       return;
     }
 
+    const isoDate = entryDate ? new Date(`${entryDate}T12:00:00Z`).toISOString() : undefined;
+
     setIsSubmitting(true);
     setError(null);
     try {
@@ -92,6 +115,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
           amount: parsedAmount,
           description: description.trim(),
           receipt_url: receiptUrl.trim() || undefined,
+          created_at: isoDate,
         });
       } else {
         await api.adminUpdateDonation(entry.id, {
@@ -99,6 +123,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
           payment_method: paymentMethod,
           status: donationStatus,
           user_id: selectedUserId,
+          created_at: isoDate,
         });
       }
       triggerHaptic?.('success');
@@ -168,20 +193,43 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({
         )}
 
         <form onSubmit={handleSave} className="space-y-3">
-          {/* Amount field */}
-          <div>
-            <label className="block text-[11px] font-semibold text-coffee-latte uppercase tracking-wider mb-1">
-              Amount (€)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0.1"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full text-xs font-bold p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-coffee-latte text-coffee-espresso"
-            />
+          {/* Amount & Date fields */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-coffee-latte uppercase tracking-wider mb-1">
+                Amount (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.1"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full text-xs font-bold p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-coffee-latte text-coffee-espresso"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-coffee-latte uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                <span>Date</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.();
+                  } catch {
+                    // ignore if not supported
+                  }
+                }}
+                className="w-full text-xs font-semibold p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-coffee-latte text-coffee-espresso cursor-pointer"
+              />
+            </div>
           </div>
 
           {/* If Expense: category, description, receipt */}

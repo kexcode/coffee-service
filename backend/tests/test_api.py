@@ -167,11 +167,21 @@ async def test_dashboard_and_pledge_flow():
         reassign_resp = await client.patch(
             f"/api/admin/donations/{donation['id']}",
             headers=admin_headers,
-            json={"user_id": luca_id},
+            json={"user_id": luca_id, "created_at": "2026-03-15T12:00:00Z"},
         )
         assert reassign_resp.status_code == 200
         assert reassign_resp.json()["user_id"] == luca_id
         assert reassign_resp.json()["user_first_name"] == "Luca"
+        assert reassign_resp.json()["created_at"].startswith("2026-03-15")
+
+        exp_id = expense_resp.json()["id"]
+        exp_date_resp = await client.patch(
+            f"/api/admin/expenses/{exp_id}",
+            headers=admin_headers,
+            json={"created_at": "2026-02-10T12:00:00Z"},
+        )
+        assert exp_date_resp.status_code == 200
+        assert exp_date_resp.json()["created_at"].startswith("2026-02-10")
 
         # 11. Role management: promote Luca to admin
         role_resp = await client.patch(

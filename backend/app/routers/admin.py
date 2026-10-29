@@ -71,6 +71,11 @@ async def update_expense(
     if payload.receipt_url is not None:
         cleaned_url = payload.receipt_url.strip()
         expense.receipt_url = cleaned_url if cleaned_url else None
+    if payload.created_at is not None:
+        dt = payload.created_at
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        expense.created_at = dt
 
     await db.commit()
     await db.refresh(expense)
@@ -215,6 +220,11 @@ async def update_donation(
             raise HTTPException(status_code=400, detail="Target user for contributor assignment not found")
         donation.user_id = target_user.id
         user = target_user
+    if payload.created_at is not None:
+        dt = payload.created_at
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        donation.created_at = dt
 
     await db.commit()
     await db.refresh(donation)
