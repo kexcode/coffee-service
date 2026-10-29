@@ -136,6 +136,7 @@ async def get_current_user(
     resolved_role = "admin" if (is_admin_configured or role_override == "admin") else "user"
 
     if not user:
+        from sqlalchemy.exc import IntegrityError
         is_verified = True if (is_admin_configured or resolved_role == "admin") else False
         user = User(
             tg_id=tg_id,
@@ -147,8 +148,13 @@ async def get_current_user(
             pledge_active=False,
         )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+        except IntegrityError:
+            await db.rollback()
+            result = await db.execute(select(User).where(User.tg_id == tg_id))
+            user = result.scalar_one()
     else:
         # Update details if changed
         updated = False

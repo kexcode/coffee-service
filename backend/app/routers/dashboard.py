@@ -183,6 +183,9 @@ async def get_feed(
             )
         )
 
-    # Sort combined feed chronologically descending
-    items.sort(key=lambda x: x.created_at, reverse=True)
+    # Sort combined feed chronologically descending (normalize tz-naive and tz-aware datetimes)
+    items.sort(
+        key=lambda x: x.created_at.replace(tzinfo=timezone.utc) if x.created_at.tzinfo is None else x.created_at,
+        reverse=True,
+    )
     return items[:50]

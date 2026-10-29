@@ -17,8 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source code
+# Copy application source code and tests
 COPY app/ ./app/
+COPY tests/ ./tests/
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data

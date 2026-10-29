@@ -97,16 +97,19 @@ async def handle_start(message: Message):
                 await session.commit()
             user_verified = user.is_verified
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="☕ Open Coffee Dashboard",
-                    web_app=WebAppInfo(url=settings.WEBAPP_URL),
-                )
+    webapp_url = settings.live_webapp_url
+    keyboard = None
+    if webapp_url.startswith("https://"):
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="☕ Open Coffee Dashboard",
+                        web_app=WebAppInfo(url=webapp_url),
+                    )
+                ]
             ]
-        ]
-    )
+        )
 
     status_note = (
         "✅ <b>Status:</b> Verified Community Member\n\n"
@@ -124,7 +127,11 @@ async def handle_start(message: Message):
         f"Tap the button below to launch the Mini App dashboard."
     )
 
-    await message.answer(welcome_text, reply_markup=keyboard)
+    try:
+        await message.answer(welcome_text, reply_markup=keyboard)
+    except Exception as e:
+        logger.warning(f"Failed to send start message with WebApp button ({webapp_url}): {e}")
+        await message.answer(welcome_text)
 
 
 # =========================================================================

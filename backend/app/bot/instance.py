@@ -82,16 +82,19 @@ async def notify_user_verified(tg_id: int):
         return
     try:
         from aiogram.types import WebAppInfo
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="☕ Open Coffee Dashboard",
-                        web_app=WebAppInfo(url=settings.WEBAPP_URL),
-                    )
+        webapp_url = settings.live_webapp_url
+        keyboard = None
+        if webapp_url.startswith("https://"):
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="☕ Open Coffee Dashboard",
+                            web_app=WebAppInfo(url=webapp_url),
+                        )
+                    ]
                 ]
-            ]
-        )
+            )
         text = (
             "🎉 <b>You are verified!</b>\n\n"
             "An administrator has verified your office coffee community membership.\n"

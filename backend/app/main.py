@@ -102,6 +102,25 @@ async def lifespan(app: FastAPI):
     bot_poll_task = None
     if bot and dp:
         dp.include_router(bot_router)
+        try:
+            from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
+            await bot.delete_webhook(drop_pending_updates=False)
+            await bot.set_my_commands([
+                BotCommand(command="start", description="☕ Open Coffee Pot Dashboard"),
+                BotCommand(command="add_expense", description="📝 Record coffee station expense (Admin)"),
+            ])
+            live_url = settings.live_webapp_url
+            if live_url.startswith("https://"):
+                await bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="☕ Coffee Pot",
+                        web_app=WebAppInfo(url=live_url),
+                    )
+                )
+                logger.info(f"Configured Telegram MenuButtonWebApp -> {live_url}")
+        except Exception as e:
+            logger.warning(f"Failed to configure bot menu/commands at startup: {e}")
+
         logger.info("Starting Telegram Bot polling in background...")
         # Start bot polling task
         bot_poll_task = asyncio.create_task(dp.start_polling(bot))

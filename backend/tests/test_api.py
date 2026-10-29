@@ -4,8 +4,12 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import StaticPool
 from app.main import app
+from app.config import get_settings
 from app.database import get_db, Base
 from app.models import Setting
+
+# Ensure test suite always allows dev header authentication regardless of container ENVIRONMENT
+get_settings().ENVIRONMENT = "development"
 
 test_engine = create_async_engine(
     "sqlite+aiosqlite:///:memory:",
@@ -272,4 +276,34 @@ async def test_sweets_anonymous_and_csv_import():
         assert "sweets" in dash["category_breakdown"]
         # Initial 7.50 + imported 5.50 + imported cookies 4.00 = 17.00
         assert dash["category_breakdown"]["sweets"] == 17.00
+
+        # Verify Feed works with mixed naive and timezone-aware timestamps
+        feed_resp = await client.get("/api/feed", headers=admin_headers)
+        assert feed_resp.status_code == 200
+        assert len(feed_resp.json()) >= 6
+
+        # Verify sample CSV download endpoint
+        sample_resp = await client.get("/api/admin/import/sample-template")
+        assert sample_resp.status_code == 200
+        assert "date,category,amount,contributor" in sample_resp.text
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_visit_no_race_condition():
+    import asyncio
+    new_user_headers = {
+        "X-Dev-Tg-Id": "777888",
+        "X-Dev-First-Name": "Alex",
+        "X-Dev-Username": "alex_barista",
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r1, r2, r3 = await asyncio.gather(
+            client.get("/api/user/me", headers=new_user_headers),
+            client.get("/api/dashboard", headers=new_user_headers),
+            client.get("/api/feed", headers=new_user_headers),
+        )
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r3.status_code == 200
+
 

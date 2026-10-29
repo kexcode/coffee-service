@@ -44,6 +44,24 @@ class Settings(BaseSettings):
             return True
         return False
 
+    @property
+    def live_webapp_url(self) -> str:
+        """
+        Returns the most up-to-date HTTPS WebApp URL.
+        First checks ./data/webapp_url.txt (written dynamically by tunnel-sync),
+        falling back to the WEBAPP_URL environment variable.
+        """
+        for candidate_path in ("./data/webapp_url.txt", "/app/data/webapp_url.txt"):
+            try:
+                if os.path.exists(candidate_path):
+                    with open(candidate_path, "r", encoding="utf-8") as f:
+                        url = f.read().strip()
+                    if url.startswith("https://"):
+                        return url
+            except Exception:
+                pass
+        return self.WEBAPP_URL.strip()
+
 
 @lru_cache()
 def get_settings() -> Settings:

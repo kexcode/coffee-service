@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   backend:
     build:
@@ -14,7 +12,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:///app/data/coffee.db
+      - DATABASE_URL=sqlite+aiosqlite:///./data/coffee.db
     volumes:
       - ./data:/app/data
     healthcheck:

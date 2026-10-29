@@ -101,17 +101,25 @@ After=network.target coffee-service.service
 [Service]
 Type=simple
 User=ubuntu
+ExecStartPre=-/bin/rm -f /home/ubuntu/cloudflared-coffee.log
 ExecStart=/usr/bin/cloudflared tunnel --url http://127.0.0.1:3000 --logfile /home/ubuntu/cloudflared-coffee.log
+ExecStartPost=/bin/bash /opt/coffee-service/deploy/tunnel-sync.sh
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
+  sed -i "s|/opt/coffee-service|$PROJECT_ROOT|g" /etc/systemd/system/coffee-tunnel.service
   systemctl daemon-reload
   systemctl enable coffee-tunnel.service
   echo "✅ Cloudflare tunnel service created and enabled."
 fi
+
+# 9. Register global coffee-deploy command
+chmod +x "$PROJECT_ROOT/deploy/deploy.sh" "$PROJECT_ROOT/deploy/tunnel-sync.sh" 2>/dev/null || true
+ln -sf "$PROJECT_ROOT/deploy/deploy.sh" /usr/local/bin/coffee-deploy
+echo "✅ Registered 'coffee-deploy' command in /usr/local/bin/coffee-deploy"
 
 echo "========================================================"
 echo "🎉 Setup complete!"

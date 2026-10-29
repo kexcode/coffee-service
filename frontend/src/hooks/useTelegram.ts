@@ -27,7 +27,17 @@ function getTelegramContext() {
     initData = searchParams.get('tgWebAppData') || '';
   }
 
-  const user = (twa?.initDataUnsafe as { user?: TelegramUser })?.user || null;
+  let user = (twa?.initDataUnsafe as { user?: TelegramUser })?.user || null;
+  if (!user && initData) {
+    try {
+      const userRaw = new URLSearchParams(initData).get('user');
+      if (userRaw) {
+        user = JSON.parse(userRaw);
+      }
+    } catch {
+      // ignore malformed user JSON
+    }
+  }
   const isTma = Boolean(initData || user);
 
   return { initData, user, isTma };

@@ -50,12 +50,12 @@ export function App() {
           role: !isTma ? devRole : undefined,
         });
       }
-      const [userData, dashData, feedData] = await Promise.all([
-        api.getUserMe(),
+      const userData = await api.getUserMe();
+      setUser(userData);
+      const [dashData, feedData] = await Promise.all([
         api.getDashboard(),
         api.getFeed(),
       ]);
-      setUser(userData);
       setDashboard(dashData);
       setFeed(feedData);
     } catch (e: any) {
@@ -106,7 +106,11 @@ export function App() {
         {error && (
           <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+            <span>
+              {error.includes('X-Telegram-Init-Data')
+                ? 'Please launch this dashboard inside the official Telegram Mini App.'
+                : error}
+            </span>
           </div>
         )}
 
